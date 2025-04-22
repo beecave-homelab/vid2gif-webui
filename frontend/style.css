@@ -1,0 +1,145 @@
+body {
+  background: #121212;
+  color: #e0e0e0;
+  font-family: sans-serif;
+  display: flex;
+  justify-content: center;
+  padding: 2rem;
+}
+.container {
+  width: 90%;
+  max-width: 800px;
+}
+.container h1 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+.drop-zone {
+  border: 2px dashed #444;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  margin-bottom: 1rem;
+}
+.drop-zone.dragover { border-color: #888; }
+.previews {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.video-editor-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  background-color: #1a1a1a;
+  padding: 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #333;
+}
+.video-preview {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  background-color: #000;
+  margin-bottom: 0.5rem;
+}
+.video-filename {
+  font-size: 0.8rem;
+  margin-top: 0.3rem;
+  text-align: center;
+  word-break: break-all;
+  color: #aaa;
+  margin-bottom: 0.5rem;
+}
+.unsupported-preview {
+  padding: 1rem;
+  border: 1px solid #553333;
+  background-color: #221111;
+  color: #ffaaaa;
+  text-align: center;
+  word-break: break-all;
+  max-width: calc(50% - 0.5rem);
+  box-sizing: border-box;
+}
+.hidden { display: none; }
+button {
+  padding: 0.5rem 1rem;
+  background: #1f1f1f;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+button:hover { background: #333; }
+@media (max-width: 600px) {
+  .container { width: 95%; }
+  .unsupported-preview {
+    max-width: 100%;
+  }
+}
+#progress-container { margin-top: 1rem; }
+progress { width: 100%; }
+#downloads { margin-top: 1rem; }
+#downloads a { display: block; margin-bottom: 0.5rem; color: #6fa8dc; }
+#downloads a:hover { color: #9fc5e8; }
+.editor-controls {
+  width: 100%;
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.time-display {
+  font-family: monospace;
+  text-align: center;
+  color: #ccc;
+  margin-bottom: 0.3rem;
+  white-space: pre;
+}
+.time-slider {
+  width: calc(100% - 85px);
+  cursor: pointer;
+  vertical-align: middle;
+}
+.time-input {
+  width: 70px;
+  padding: 2px 4px;
+  background-color: #333;
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 3px;
+  font-size: 0.8rem;
+  text-align: right;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+.control-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 5px;
+}
+.control-row label {
+  flex-basis: 35px;
+  text-align: right;
+}
+
+/* Styles for the main conversion controls wrapper */
+.conversion-controls {
+  display: flex;
+  justify-content: center; /* Center items horizontally */
+  align-items: center; /* Align items vertically */
+  flex-wrap: wrap; /* Allow wrapping on small screens */
+  gap: 1rem; /* Space between control groups */
+  margin-top: 1.5rem; /* Space above controls */
+  margin-bottom: 1.5rem; /* Space below controls */
+}
+
+/* Minor adjustment for label/input spacing if needed */
+.conversion-controls label {
+  margin-right: 0.25rem; /* Small space between label and its control */
+} 

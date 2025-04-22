@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>vid2gif webui</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Video → GIF Converter</h1>
+    <div id="drop-zone" class="drop-zone">
+      <p>Drag &amp; drop videos here<br/>or click to select</p>
+      <input type="file" id="file-input" multiple accept="video/*">
+    </div>
+
+    <div id="previews" class="previews"></div>
+
+    <div class="conversion-controls">
+      <label for="scale">Scale:</label>
+      <select id="scale">
+        <option value="original">Original</option>
+        <option value="320:-1">Width 320px</option>
+        <option value="360:-1">Width 360px (SD)</option>
+        <option value="480:-1">Width 480px (SD)</option>
+        <option value="720:-1">Width 720px (HD)</option>
+        <option value="1080:-1">Width 1080px (Full HD)</option>
+        <option value="1920:-1">Width 1920px (Full HD)</option>
+        <option value="2560:-1">Width 2560px (QHD/2K)</option>
+        <option value="3840:-1">Width 3840px (UHD/4K)</option>
+      </select>
+
+      <label for="fps-input">FPS (1-20):</label>
+      <input type="number" id="fps-input" name="fps" min="1" max="20" value="10">
+
+      <button id="convert-btn">Create GIF</button>
+    </div>
+
+    <div id="progress-container" class="hidden">
+      <div id="progress-text"></div>
+      <progress id="progress-bar" value="0" max="100"></progress>
+    </div>
+
+    <div id="downloads" class="downloads"></div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html> 
