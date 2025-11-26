@@ -1,0 +1,86 @@
+[project]
+name = "vid2gif-webui"
+version = "0.1.0"
+description = "A webui for converting video files into GIF using ffmpeg"
+authors = [
+    {name = "elvee", email = "lowie@beecave.nl"},
+]
+requires-python = ">=3.13"
+readme = "README.md"
+license = {text = "MIT"}
+
+dependencies = [
+    "fastapi>=0.122.0",
+    "uvicorn[standard]>=0.38.0",
+    "python-multipart>=0.0.20",
+    "gunicorn>=23.0.0",
+    "python-env>=1.0.0"
+]
+
+[tool.pdm.dev-dependencies]
+lint = [
+  "ruff>=0.6.9",
+]
+
+test = [
+  "pytest>=8.0.0",
+  "pytest-cov>=5.0.0",
+]
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm]
+distribution = true
+
+[tool.ruff]
+# Align with repo guidance; adjust if project standard differs
+line-length = 100
+# Target Python 3.12 features; update if project pins another version
+target-version = "py312"
+preview = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
+
+# Excluded files from linting
+exclude = [
+    "project-plan"
+]
+
+[tool.ruff.lint]
+# Enable rule families from AGENTS.md
+select = [
+  "F",   # Pyflakes (correctness)
+  "E", "W",  # pycodestyle (PEP8 surface)
+  "N",  # pep8-naming (naming)
+  "I",  # isort (import order)
+  "D",  # pydocstyle (docstrings)
+  "DOC",# pydoclint (docstrings content)
+  "TID",# tidy imports (import hygiene)
+  "UP", # pyupgrade (modern python)
+  "FA", # future-annotations guidance
+]
+ignore = []
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.pytest.ini_options]
+addopts = "--maxfail=1 -q --import-mode=append"
+
+[tool.pdm.scripts]
+lint = "ruff check ."
+format = "ruff format ."
+fix = "ruff check --fix ."
+test = "pytest -q"
+test-cov = "pytest --cov=. --cov-report=term-missing:skip-covered --cov-report=xml"
+
+start-dev = "uvicorn backend.app:app --host 0.0.0.0 --port 8080 --reload"
+start-prod = "gunicorn backend.app:app --bind 0.0.0.0:8080"
+
+vid2gif-webui = "vid2gif-webui.cli.main:main"
