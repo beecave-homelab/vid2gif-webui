@@ -8,6 +8,8 @@ const progContainer = document.getElementById('progress-container');
 const progBar = document.getElementById('progress-bar');
 const progText = document.getElementById('progress-text');
 const downloads = document.getElementById('downloads');
+const POLL_MAX_RETRIES = 5;
+const POLL_BASE_DELAY_MS = 1000;
 
 let fileData = []; // Store { file, startTime, endTime, duration, elements: {startInput, endInput, startSlider, endSlider, timeDisplay} }
 let objectUrls = []; // Keep track of object URLs to revoke later
@@ -281,7 +283,7 @@ convertBtn.addEventListener('click', async () => {
     const res = await fetch('/convert', { method: 'POST', body: form });
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
     const { job_id } = await res.json();
-    pollProgress(job_id);
+    pollProgress(job_id, 0);
     // --- End fetch and poll logic ---
   } catch (error) {
       console.error('Error starting conversion:', error);
@@ -291,7 +293,7 @@ convertBtn.addEventListener('click', async () => {
   }
 });
 
-async function pollProgress(job_id) {
+async function pollProgress(job_id, attempt = 0) {
   try {
     const res = await fetch(`/progress?job_id=${job_id}`);
     if (!res.ok) {
@@ -313,23 +315,23 @@ async function pollProgress(job_id) {
     }
 
     const {
-      current = 0,
-      total = 0,
-      percent = 0,
-      est_seconds = null,
+      current_file_index = 0,
+      total_files = 1,
+      current_file_percent = 0,
+      current_file_est_seconds = null,
       status = 'unknown',
       downloads: dls = []
     } = data; // Provide defaults
 
-    progBar.value = percent;
-    const etaString = est_seconds !== null && est_seconds >= 0 ? `${est_seconds}s` : '--';
-    progText.textContent = `${status} — ${percent}% (est. ${etaString})`;
+    progBar.value = current_file_percent;
+    const etaString = current_file_est_seconds !== null && current_file_est_seconds >= 0 ? `${current_file_est_seconds}s` : '--';
+    progText.textContent = `${status} — File ${current_file_index}/${total_files} — ${current_file_percent}% (est. ${etaString})`;
 
-    const isDone = status === 'done' || status === 'completed' || status.startsWith('error');
-    const isSuccess = status === 'done' || status === 'completed';
+    const isDone = status === 'done' || status === 'failed' || status.startsWith('completed') || status.startsWith('error');
+    const isSuccess = status === 'done' || status.startsWith('completed');
 
     if (!isDone) {
-      setTimeout(() => pollProgress(job_id), 1000);
+      setTimeout(() => pollProgress(job_id, attempt + 1), 1000);
     } else {
         // Final status is set above
         if (isSuccess && downloads.children.length === 0 && dls && dls.length > 0) {
@@ -357,7 +359,9 @@ async function pollProgress(job_id) {
   } catch (error) {
     console.error('Error polling progress:', error);
     progText.textContent = `Error fetching progress: ${error.message}`;
-    // Optionally stop polling on error, or implement retry logic
-    // setTimeout(() => pollProgress(job_id), 5000); // Example retry after 5s
+    if (attempt < POLL_MAX_RETRIES) {
+      const delay = POLL_BASE_DELAY_MS * (attempt + 1);
+      setTimeout(() => pollProgress(job_id, attempt + 1), delay);
+    }
   }
 } 
