@@ -50,7 +50,7 @@ pdm run start-dev
 docker compose -f docker-compose.dev.yaml up --build
 ```
 
-Access the WebUI at `http://localhost:8080` (PDM) or `http://localhost:8000` (Docker).
+Access the WebUI at `http://localhost:8080` (local/PDM or production Docker) or `http://localhost:8081` (development Docker).
 
 ---
 
@@ -95,8 +95,9 @@ vid2gif-webui/
 │   └── test_scale_validation.py  # Scale allowlist validation
 ├── Dockerfile                  # Production container image
 ├── Dockerfile.dev              # Development container image
-├── docker-compose.yaml         # Production compose (with reload)
-├── docker-compose.dev.yaml     # Development compose (with reload)
+├── docker-compose.yaml         # Production compose (Gunicorn on 8080)
+├── docker-compose.dev.yaml     # Development compose (Uvicorn reload on 8081)
+├── .env.example                # Example environment configuration
 ├── pyproject.toml              # PDM project config, dependencies, scripts
 ├── pdm.lock                    # Locked dependency versions
 ├── AGENTS.md                   # Coding rules and standards (Ruff + Pytest + SOLID)
@@ -217,9 +218,9 @@ Download a generated GIF. Returns `image/gif` with `Content-Disposition` header.
 docker compose up -d --build
 ```
 
-- Exposes port **8000**
-- Runs Uvicorn with `--reload` and `--log-level debug` (adjust for true prod)
-- Mounts `./backend` and `./frontend` as volumes for live editing
+- Exposes port **8080**
+- Uses `Dockerfile` and the image's default command (Gunicorn binding to port 8080)
+- Does **not** mount source code as volumes by default (suitable for more production-like runs)
 
 ### Development
 
@@ -227,13 +228,15 @@ docker compose up -d --build
 docker compose -f docker-compose.dev.yaml up --build
 ```
 
-Same as production compose (currently identical files).
+- Exposes port **8081**
+- Uses `Dockerfile.dev` with Uvicorn `--reload` and `--log-level debug`
+- Mounts `./backend` and `./frontend` into the container for live code editing
 
 ### Image Details
 
 - **Base**: `python:3.10-slim`
 - **System deps**: `ffmpeg`, `gcc`
-- **Python deps**: Installed from `backend/requirements.txt` (generated from `pyproject.toml`)
+- **Python deps**: Installed from PDM-generated requirements files (`requirements.txt`, `requirements.dev.txt`)
 
 ---
 
@@ -241,18 +244,20 @@ Same as production compose (currently identical files).
 
 All configuration is centralized in `backend/utils/constant.py`. **Do not** read `os.environ` elsewhere.
 
+The canonical list of runtime variables and their defaults lives in `.env.example`:
+
 | Variable              | Default | Description                                |
 |-----------------------|---------|--------------------------------------------|
 | `TMP_BASE_DIR`        | `tmp`   | Directory for temporary job files          |
 | `JOB_TTL_SECONDS`     | `3600`  | Seconds before expired jobs are cleaned up |
 | `FFMPEG_MAX_CONCURRENT` | `4`   | Max simultaneous ffmpeg processes          |
 
-To override, set environment variables before starting the server:
+Recommended workflow:
 
-```bash
-export JOB_TTL_SECONDS=7200
-pdm run start-dev
-```
+1. Copy `.env.example` to `.env` and adjust values for your environment.
+2. Ensure these variables are visible in the process environment when starting the app:
+   - For local runs (`pdm run start-dev` or `pdm run start-prod`), export them via your shell, a `.env` loader, or your process manager.
+   - For Docker/Compose, wire them in via `env_file: .env` or explicit `environment:` keys in your own compose overrides.
 
 ---
 
@@ -418,6 +423,28 @@ Run lint + tests before committing. Use conventional commit format.
 | Tool     | Purpose                        |
 |----------|--------------------------------|
 | `ffmpeg` | Video-to-GIF conversion engine |
+
+### Managing dependency changes
+
+When you add or update Python dependencies, follow this workflow so that both `pyproject.toml` and the exported requirements files stay in sync:
+
+1. **Add a new dependency** (updates `pyproject.toml` and lock file):
+
+   ```bash
+   pdm add <package>
+   pdm lock
+   pdm install
+   ```
+
+2. **Regenerate requirements files** (for Docker images, etc.):
+
+   ```bash
+   pdm export --pyproject --no-hashes --prod -o requirements.txt
+   ```
+
+   ```bash
+   pdm export --pyproject --no-hashes --dev -o requirements.dev.txt
+   ```
 
 ---
 
