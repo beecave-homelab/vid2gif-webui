@@ -128,23 +128,43 @@ vid2gif-webui/
 
 ### Data Flow
 
-```text
-┌─────────────┐   POST /convert    ┌─────────────────┐
-│   Browser   │ ─────────────────► │  FastAPI App    │
-│  (script.js)│                    │  (backend/app)  │
-└─────────────┘                    └────────┬────────┘
-       │                                    │
-       │ GET /progress?job_id=...           │ spawn threads
-       │◄───────────────────────────────────┤
-       │                                    ▼
-       │                           ┌────────────────┐
-       │                           │  ffmpeg (CLI)  │
-       │                           └────────┬───────┘
-       │                                    │
-       │ GET /download/{job_id}/{file}.gif  │ writes .gif
-       │◄───────────────────────────────────┘
-       ▼
-   Download GIF
+```mermaid
+flowchart LR
+  subgraph client_side["Client"]
+    direction TB
+    browser["Browser (script.js)"]
+    download["Download GIF"]
+  end
+
+  subgraph backend_side["Backend & Infra"]
+    direction TB
+    fastapi["FastAPI App (backend/app)"]
+    ffmpeg["ffmpeg (CLI)"]
+    gifFile["Generated GIF file"]
+  end
+
+  %% Main conversion request
+  browser -- "POST /convert" --> fastapi
+
+  %% Progress polling
+  browser -- "GET /progress?job_id=..." --> fastapi
+
+  %% ffmpeg processing
+  fastapi -- "spawn threads" --> ffmpeg
+  ffmpeg -- "writes .gif" --> gifFile
+
+  %% Download flow
+  browser -- "GET /download/{job_id}/{file}.gif" --> fastapi
+  fastapi -- "serve GIF" --> download
+
+  classDef client fill:#913C8F,stroke:#000,color:#fff;
+  classDef backend fill:#4C82EE,stroke:#000,color:#fff;
+  classDef infra fill:#CCCCCC,stroke:#000,color:#000;
+
+  class browser,download client;
+  class fastapi backend;
+  class ffmpeg,gifFile infra;
+
 ```
 
 ---
