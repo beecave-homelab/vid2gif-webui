@@ -2,20 +2,20 @@ services:
   web:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
-      - "8080:8080"
+      - "8081:8081"
     restart: unless-stopped
-    # volumes:
+    volumes:
       # Mount backend code (read-write)
-      # - ./backend:/app/backend
+      - ./backend:/app/backend
       # Mount frontend files (read-write)
-      # - ./frontend:/app/frontend
+      - ./frontend:/app/frontend
     working_dir: /app
     # Override the default CMD to run from the mounted backend
     # and enable --reload for development
     # Add --log-level debug for more verbose Uvicorn output
-    # command: ["gunicorn", "backend.app:app", "--bind", "0.0.0.0:8080"]
+    command: ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8081", "--reload", "--log-level", "debug"]
     # Ensure tmp directory exists for uploads within the container's app context
     # Note: This tmp directory inside the container will be ephemeral
     # You might want to mount a persistent volume for tmp if needed across restarts
