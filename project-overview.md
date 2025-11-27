@@ -129,42 +129,79 @@ vid2gif-webui/
 ### Data Flow
 
 ```mermaid
-flowchart LR
-  subgraph client_side["Client"]
-    direction TB
-    browser["Browser (script.js)"]
-    download["Download GIF"]
-  end
+stateDiagram-v2
+direction LR
 
-  subgraph backend_side["Backend & Infra"]
-    direction TB
-    fastapi["FastAPI App (backend/app)"]
-    ffmpeg["ffmpeg (CLI)"]
-    gifFile["Generated GIF file"]
-  end
+[*] --> Client_Idle
 
-  %% Main conversion request
-  browser -- "POST /convert" --> fastapi
+%% Client states
+Client_Idle: Client idle
+Client_Upload: Select files + configure trim/scale/fps
+Client_Wait: Waiting for progress
+Client_Ready: Ready to download GIF(s)
+Client_Done: Conversion completed
 
-  %% Progress polling
-  browser -- "GET /progress?job_id=..." --> fastapi
+%% Backend states
+Backend_Idle: No active conversion job
+Backend_Validate: Validate request & normalize params
+Backend_Job: Create job_id & job record
+Backend_Run: Track job progress (ffmpeg stderr)
+Backend_Done: Mark job done (populate downloads[].url)
+Backend_Error: Mark job failed
+Backend_Cleanup: Cleanup expired jobs (TTL)
 
-  %% ffmpeg processing
-  fastapi -- "spawn threads" --> ffmpeg
-  ffmpeg -- "writes .gif" --> gifFile
+%% Worker states
+Worker_Start: Start ffmpeg process
+Worker_Run: ffmpeg encodes GIF(s)
+Worker_Ok: Exit 0 (success)
+Worker_Fail: Exit != 0 (error)
 
-  %% Download flow
-  browser -- "GET /download/{job_id}/{file}.gif" --> fastapi
-  fastapi -- "serve GIF" --> download
+%% Core client flow
+Client_Idle --> Client_Upload: select files + options
+Client_Upload --> Backend_Validate: POST /convert
+Client_Upload --> Client_Wait: waiting for first progress
+Client_Wait --> Backend_Run: GET /progress?job_id=...
+Backend_Run --> Client_Wait: status + percent + ETA
+Backend_Run --> Backend_Done: status == done
+Backend_Done --> Client_Ready
+Client_Ready --> Client_Done: GET /download/{job_id}/{gif}
+Client_Done --> Client_Idle
+Client_Done --> [*]
 
-  classDef client fill:#913C8F,stroke:#000,color:#fff;
-  classDef backend fill:#4C82EE,stroke:#000,color:#fff;
-  classDef infra fill:#CCCCCC,stroke:#000,color:#000;
+%% Backend validation & lifecycle
+Backend_Idle --> Backend_Validate: receive /convert
+Backend_Validate --> Backend_Job: valid
+Backend_Validate --> Backend_Error: invalid
+Backend_Job --> Backend_Run: start tracking job
 
-  class browser,download client;
-  class fastapi backend;
-  class ffmpeg,gifFile infra;
+%% Worker execution
+Backend_Job --> Worker_Start: spawn ffmpeg
+Worker_Start --> Worker_Run
+Worker_Run --> Worker_Ok: exit 0
+Worker_Run --> Worker_Fail: exit != 0
+Worker_Ok --> Backend_Done
+Worker_Fail --> Backend_Error
 
+%% Cleanup
+Backend_Done --> Backend_Cleanup
+Backend_Error --> Backend_Cleanup
+Backend_Cleanup --> Backend_Idle
+
+%% Styling (at least three distinct colors)
+classDef client fill:#7c3aed,stroke:#4c1d95,color:#f9fafb
+classDef backend fill:#2563eb,stroke:#1e3a8a,color:#f9fafb
+classDef worker fill:#9ca3af,stroke:#4b5563,color:#111827
+classDef waiting fill:#f97316,stroke:#c2410c,color:#111827
+classDef success fill:#16a34a,stroke:#166534,color:#f9fafb
+classDef error fill:#dc2626,stroke:#991b1b,color:#f9fafb
+
+class Client_Idle,Client_Upload,Client_Wait,Client_Ready,Client_Done client
+class Backend_Idle,Backend_Validate,Backend_Job,Backend_Run,Backend_Done,Backend_Error,Backend_Cleanup backend
+class Worker_Start,Worker_Run,Worker_Ok,Worker_Fail worker
+
+class Client_Wait waiting
+class Client_Done,Backend_Done,Worker_Ok success
+class Backend_Error,Worker_Fail error
 ```
 
 ---
@@ -184,6 +221,55 @@ Start a batch conversion job.
 | `end_times`   | `str[]`        | End time in seconds per file                     |
 
 **Response**: `{ "job_id": "<uuid>" }`
+
+**Constraints and notes:**
+
+- The lengths of `files`, `start_times`, and `end_times` **must match**.
+- `start_times` and `end_times` are **seconds as strings** (floats allowed per file).
+- For each file: `0 <= start_times[i] < end_times[i]`.
+- `fps` must be between **1 and 20** (inclusive).
+- `scale` must be one of:
+  - `original`, `320:-1`, `360:-1`, `480:-1`, `720:-1`,
+    `1080:-1`, `1920:-1`, `2560:-1`, `3840:-1`.
+
+### Example: API usage with curl
+
+The following examples assume the API is reachable at `http://localhost:8080`.
+Adjust the port as needed (for example, `8081` when using `docker-compose.dev.yaml`,
+or `8000` if you run Uvicorn directly).
+
+#### 1. Start a conversion job
+
+Single file, keep original size, first 10 seconds at 10 FPS:
+
+```bash
+curl -X POST "http://localhost:8080/convert" \
+  -F "files=@/absolute/path/to/video.mov" \
+  -F "scale=original" \
+  -F "fps=10" \
+  -F "start_times=0" \
+  -F "end_times=10"
+```
+
+For multiple files, repeat the form fields; all lists must have the same length:
+
+```bash
+curl -X POST "http://localhost:8080/convert" \
+  -F "files=@/path/to/clip1.mov" \
+  -F "files=@/path/to/clip2.mov" \
+  -F "scale=720:-1" \
+  -F "fps=12" \
+  -F "start_times=0" \
+  -F "start_times=5" \
+  -F "end_times=8" \
+  -F "end_times=15"
+```
+
+The response will contain a job identifier:
+
+```json
+{ "job_id": "<uuid>" }
+```
 
 ### `GET /progress`
 
@@ -213,6 +299,41 @@ Poll job status.
 ### `GET /download/{job_id}/{gif_filename}`
 
 Download a generated GIF. Returns `image/gif` with `Content-Disposition` header.
+
+#### 2. Check job progress
+
+Use the `job_id` from the `/convert` response:
+
+```bash
+curl "http://localhost:8080/progress?job_id=<uuid>"
+```
+
+Poll periodically (for example, every second) until `status` is `"done"` or a
+final status (such as `"completed with errors"` or `"failed"`) is reported.
+
+#### 3. Download generated GIFs
+
+When the job is complete, use the `downloads[].url` values from the
+`/progress` response. Each entry looks like:
+
+```json
+{
+  "original": "clip.mp4",
+  "url": "/download/<job_id>/clip.gif"
+}
+```
+
+To download that file with `curl`, prepend your base URL to the `url` field:
+
+```bash
+curl -o clip.gif "http://localhost:8080/download/<job_id>/clip.gif"
+```
+
+General pattern:
+
+```bash
+curl -o <local-name>.gif "http://<host>:<port><downloads[n].url>"
+```
 
 ---
 
