@@ -173,4 +173,11 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 .cursor/rules/implementation-checklist.mdc
+.windsurf/workflows/*.md
 project-plan
+code_review.md
+
+tmp/*/*.gif
+tmp/*
+
+.github/PULL_REQUEST/
