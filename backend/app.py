@@ -550,15 +550,19 @@ def download(job_id: str, gif_filename: str) -> Response:
         A FileResponse containing the GIF file, or a JSONResponse with an error.
     """
     # Construct path using the job-specific sub-directory
+    # Basic security checks: Prevent directory traversal via job_id or filename
+    if not job_id or ".." in job_id or "/" in job_id or "\\" in job_id:
+        logging.warning(f"Download request blocked for potentially unsafe job_id: {job_id}")
+        return JSONResponse({"error": "Invalid job_id"}, status_code=400)
+
+    if not gif_filename or ".." in gif_filename or "/" in gif_filename or "\\" in gif_filename:
+        logging.warning(f"Download request blocked for potentially unsafe filename: {gif_filename}")
+        return JSONResponse({"error": "Invalid filename"}, status_code=400)
+
     path = Path(TMP_BASE_DIR) / job_id / gif_filename
     logging.info(
         f"Received /download request for job {job_id}, file {gif_filename}. Checking path: {path}"
     )
-
-    # Basic security check: Prevent directory traversal
-    if not gif_filename or ".." in gif_filename or "/" in gif_filename or "\\" in gif_filename:
-        logging.warning(f"Download request blocked for potentially unsafe filename: {gif_filename}")
-        return JSONResponse({"error": "Invalid filename"}, status_code=400)
 
     if not path.exists() or not path.is_file():
         logging.warning(f"Download request failed: File not found at {path}")
