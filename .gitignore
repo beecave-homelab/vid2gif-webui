@@ -179,3 +179,5 @@ code_review.md
 
 tmp/*/*.gif
 tmp/*
+
+.github/PULL_REQUEST/
