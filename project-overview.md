@@ -12,7 +12,7 @@ A self-hosted web application for converting video files to animated GIFs using 
 [![Python](https://img.shields.io/badge/Python-3.13+-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.122+-green)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-brightgreen)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.2.0-blue)](#version-summary)
+[![Version](https://img.shields.io/badge/Version-0.3.0-blue)](#version-summary)
 
 ---
 
@@ -58,6 +58,7 @@ Access the WebUI at `http://localhost:8080` (local/PDM or production Docker) or 
 
 | Version | Date       | Type | Key Changes                                      |
 |---------|------------|------|--------------------------------------------------|
+| 0.3.0   | 2025-11-28 | ♻️   | Service layer refactor, CI/CD, improved testability |
 | 0.2.0   | 2025-11-27 | ✨   | .env.example config, UX improvements, robustness |
 | 0.1.0   | 2025-11-26 | ✨   | Initial release: video-to-GIF conversion via web |
 
