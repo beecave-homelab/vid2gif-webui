@@ -15,7 +15,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .utils.constant import FFMPEG_MAX_CONCURRENT, JOB_TTL_SECONDS, TMP_BASE_DIR
+from backend.utils.constant import FFMPEG_MAX_CONCURRENT, JOB_TTL_SECONDS, TMP_BASE_DIR
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
