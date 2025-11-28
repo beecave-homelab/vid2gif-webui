@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="Convert videos to high-quality GIFs with customizable settings" />
+  <meta name="theme-color" content="#0f0f0f" />
+  <title>vid2gif - Video to GIF Converter</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Preload critical resources -->
+  <link rel="preconnect" href="/" />
+</head>
+<body>
+  <main class="container">
+    <!-- Header -->
+    <header class="header">
+      <h1>vid2gif</h1>
+      <p>Convert videos to high-quality GIFs</p>
+    </header>
+
+    <!-- Drop Zone -->
+    <section id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Upload video files">
+      <div class="drop-zone-content">
+        <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <h2>Drop videos here</h2>
+        <p>or click to browse files</p>
+      </div>
+      <input type="file" id="file-input" multiple accept="video/*" aria-label="Select video files">
+    </section>
+
+    <!-- Video Previews -->
+    <section id="previews" class="previews" aria-label="Video previews"></section>
+
+    <!-- Conversion Controls -->
+    <section id="conversion-panel" class="conversion-panel hidden" aria-label="Conversion settings">
+      <div class="conversion-controls">
+        <div class="control-group">
+          <label for="scale">Output Size</label>
+          <select id="scale">
+            <option value="original">Original</option>
+            <option value="320:-1">320px (Tiny)</option>
+            <option value="480:-1" selected>480px (SD)</option>
+            <option value="720:-1">720px (HD)</option>
+            <option value="1080:-1">1080px (Full HD)</option>
+            <option value="1920:-1">1920px (2K)</option>
+            <option value="2560:-1">2560px (QHD)</option>
+            <option value="3840:-1">3840px (4K)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="fps-input">Frame Rate</label>
+          <input type="number" id="fps-input" name="fps" min="1" max="20" value="10" aria-describedby="fps-hint">
+        </div>
+      </div>
+      <button id="convert-btn" class="btn-primary" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <polygon points="10 8 16 12 10 16 10 8"/>
+        </svg>
+        Create GIF
+      </button>
+    </section>
+
+    <!-- Progress -->
+    <section id="progress-container" class="progress-container" aria-label="Conversion progress" aria-live="polite">
+      <div class="progress-header">
+        <span id="progress-status" class="progress-status">Preparing...</span>
+        <span id="progress-percent" class="progress-percent">0%</span>
+      </div>
+      <div class="progress-bar-wrapper">
+        <div id="progress-bar" class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+      </div>
+      <div id="progress-details" class="progress-details"></div>
+    </section>
+
+    <!-- Downloads -->
+    <section id="downloads-container" class="downloads-container" aria-label="Download completed GIFs">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        Ready for Download
+      </h3>
+      <div id="downloads-list" class="downloads-list"></div>
+    </section>
+  </main>
+
+  <!-- Toast Container -->
+  <div id="toast" class="toast" role="alert" aria-live="assertive"></div>
+
+  <script src="script.js"></script>
+</body>
+</html> 
