@@ -130,7 +130,7 @@ Port already in use:
 - Change the exposed port in `docker-compose.yaml` or run the dev server on another port:
 
   ```bash
-  uvicorn backend.app:app --host 0.0.0.0 --port 8081 --reload
+  uvicorn vid2gif.backend.app:app --host 0.0.0.0 --port 8082 --reload
   ```
 
 ## For Developers

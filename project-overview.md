@@ -81,19 +81,28 @@ Access the WebUI at `http://localhost:8080` (local/PDM or production Docker) or 
 
 ```text
 vid2gif-webui/
-├── backend/                    # Python FastAPI backend
-│   ├── app.py                  # Main application: endpoints, job processing
-│   └── utils/
-│       ├── constant.py         # Centralized configuration constants
-│       └── env_loader.py       # Environment variable loader (single source)
-├── frontend/                   # Static HTML/CSS/JS frontend
-│   ├── index.html              # Main UI page
-│   ├── script.js               # Client-side logic: upload, polling, editor
-│   └── style.css               # Dark-themed responsive styles
+├── vid2gif/                    # Main application package
+│   ├── __init__.py             # Package init
+│   ├── backend/                # Python FastAPI backend
+│   │   ├── app.py              # Thin HTTP layer: endpoints, routing
+│   │   ├── services/           # Service layer (SRP/OCP)
+│   │   │   ├── conversion.py   # Conversion orchestration
+│   │   │   ├── ffmpeg_runner.py # FFmpeg subprocess execution
+│   │   │   ├── file_manager.py # Filesystem I/O, cleanup
+│   │   │   └── job_store.py    # Job state management
+│   │   └── utils/
+│   │       ├── constant.py     # Centralized configuration constants
+│   │       └── env_loader.py   # Environment variable loader
+│   └── frontend/               # Static HTML/CSS/JS frontend
+│       ├── index.html          # Main UI page
+│       ├── script.js           # Client-side logic: upload, polling, editor
+│       └── style.css           # Dark-themed responsive styles
 ├── tests/                      # Pytest test suite
+│   ├── test_backend_app_flow.py # Endpoint and job processing tests
 │   ├── test_cleanup_jobs.py    # Job expiration and temp file cleanup
 │   ├── test_concurrency_limit.py # Semaphore-based ffmpeg limiting
-│   └── test_scale_validation.py  # Scale allowlist validation
+│   ├── test_scale_validation.py  # Scale allowlist validation
+│   └── test_services.py        # Service layer unit tests
 ├── Dockerfile                  # Production container image
 ├── Dockerfile.dev              # Development container image
 ├── docker-compose.yaml         # Production compose (Gunicorn on 8080)
@@ -111,16 +120,20 @@ vid2gif-webui/
 
 ## Architecture Highlights
 
-### Backend (`backend/app.py`)
+### Backend (`vid2gif/backend/`)
 
 - **Framework**: FastAPI with Uvicorn (dev) / Gunicorn (prod)
-- **Job Model**: In-memory `dict` keyed by UUID; stores status, progress, download links
+- **Service Layer**: Modular architecture following SRP/OCP principles
+  - `app.py` — Thin HTTP layer, endpoints only
+  - `services/job_store.py` — Thread-safe job state management
+  - `services/ffmpeg_runner.py` — FFmpeg subprocess execution & progress parsing
+  - `services/file_manager.py` — Filesystem I/O, temp dirs, cleanup
+  - `services/conversion.py` — Orchestration coordinator
 - **Concurrency Control**: `threading.Semaphore` limits simultaneous ffmpeg processes (default: 4)
-- **Background Processing**: Each file spawns a daemon thread calling ffmpeg via `subprocess.Popen`
-- **Progress Parsing**: Reads ffmpeg stderr for `time=` lines to compute percentage
-- **Cleanup**: `cleanup_expired_jobs()` runs opportunistically on each `/convert` request
+- **Dependency Injection**: Services are injected, enabling easy testing and mocking
+- **Cleanup**: Expired jobs removed opportunistically on each `/convert` request
 
-### Frontend (`frontend/`)
+### Frontend (`vid2gif/frontend/`)
 
 - **Vanilla JS** — no build step required
 - **Video Editor**: Per-file start/end sliders synced with `<video>` element
@@ -372,7 +385,7 @@ docker compose -f docker-compose.dev.yaml up --build
 
 - Exposes port **8081**
 - Uses `Dockerfile.dev` with Uvicorn `--reload` and `--log-level debug`
-- Mounts `./backend` and `./frontend` into the container for live code editing
+- Mounts `./vid2gif` into the container for live code editing
 
 ### Image Details
 
@@ -384,7 +397,7 @@ docker compose -f docker-compose.dev.yaml up --build
 
 ## Configuration & Environment Variables
 
-All configuration is centralized in `backend/utils/constant.py`. **Do not** read `os.environ` elsewhere.
+All configuration is centralized in `vid2gif/backend/utils/constant.py`. **Do not** read `os.environ` elsewhere.
 
 The canonical list of runtime variables and their defaults lives in `.env.example`:
 
@@ -464,11 +477,13 @@ pdm run test-cov
 
 ### Test Files
 
-| File                          | Coverage Area                              |
-|-------------------------------|--------------------------------------------|
-| `test_scale_validation.py`    | `is_scale_allowed()` allowlist validation  |
-| `test_cleanup_jobs.py`        | Job expiration and temp directory cleanup  |
-| `test_concurrency_limit.py`   | Semaphore-based ffmpeg concurrency control |
+| File                          | Coverage Area                               |
+|-------------------------------|---------------------------------------------|
+| `test_backend_app_flow.py`    | Endpoint and job processing tests           |
+| `test_cleanup_jobs.py`        | Job expiration and temp directory cleanup   |
+| `test_concurrency_limit.py`   | Semaphore-based ffmpeg concurrency control  |
+| `test_scale_validation.py`    | `is_scale_allowed()` allowlist validation   |
+| `test_services.py`            | Service layer unit tests                    |
 
 ### Test Naming Convention
 
@@ -500,8 +515,8 @@ docker compose -f docker-compose.dev.yaml up --build
 
 ### 3. Make Changes
 
-- Backend: Edit `backend/app.py` (hot-reload enabled)
-- Frontend: Edit `frontend/*.{html,js,css}` (refresh browser)
+- Backend: Edit files in `vid2gif/backend/` (hot-reload enabled)
+- Frontend: Edit `vid2gif/frontend/*.{html,js,css}` (refresh browser)
 
 ### 4. Lint & Format
 
@@ -525,18 +540,21 @@ Run lint + tests before committing. Use conventional commit format.
 
 ## Key Files Reference
 
-| File                          | Purpose                                         |
-|-------------------------------|-------------------------------------------------|
-| `backend/app.py`              | FastAPI app, endpoints, job processing logic    |
-| `backend/utils/constant.py`   | Centralized configuration constants             |
-| `backend/utils/env_loader.py` | Environment variable loading                    |
-| `frontend/index.html`         | Main HTML structure                             |
-| `frontend/script.js`          | Client-side upload, polling, video editor       |
-| `frontend/style.css`          | Dark-themed responsive styles                   |
-| `pyproject.toml`              | Project metadata, dependencies, PDM scripts     |
-| `AGENTS.md`                   | Coding rules (Ruff, Pytest, SOLID)              |
-| `Dockerfile`                  | Production container build                      |
-| `docker-compose.yaml`         | Production deployment                           |
+| File                                    | Purpose                                         |
+|-----------------------------------------|-------------------------------------------------|
+| `vid2gif/backend/app.py`                | FastAPI endpoints (thin HTTP layer)             |
+| `vid2gif/backend/services/conversion.py`| Conversion orchestration                        |
+| `vid2gif/backend/services/job_store.py` | Job state management                            |
+| `vid2gif/backend/services/ffmpeg_runner.py` | FFmpeg execution & progress parsing         |
+| `vid2gif/backend/services/file_manager.py`  | Filesystem I/O & cleanup                    |
+| `vid2gif/backend/utils/constant.py`     | Centralized configuration constants             |
+| `vid2gif/frontend/index.html`           | Main HTML structure                             |
+| `vid2gif/frontend/script.js`            | Client-side upload, polling, video editor       |
+| `vid2gif/frontend/style.css`            | Dark-themed responsive styles                   |
+| `pyproject.toml`                        | Project metadata, dependencies, PDM scripts     |
+| `AGENTS.md`                             | Coding rules (Ruff, Pytest, SOLID)              |
+| `Dockerfile`                            | Production container build                      |
+| `docker-compose.yaml`                   | Production deployment                           |
 
 ---
 
@@ -613,7 +631,7 @@ apt-get install ffmpeg
 lsof -i :8080
 
 # Kill it or use a different port
-pdm run uvicorn backend.app:app --port 8081
+pdm run uvicorn vid2gif.backend.app:app --port 8082
 ```
 
 ### Job files not cleaning up
