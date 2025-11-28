@@ -7,19 +7,17 @@ services:
       - "8080:8080"
     restart: unless-stopped
     # volumes:
-      # Mount backend code (read-write)
-      # - ./backend:/app/backend
-      # Mount frontend files (read-write)
-      # - ./frontend:/app/frontend
+      # Mount vid2gif package (read-write)
+      # - ./vid2gif:/app/vid2gif
     working_dir: /app
     # Override the default CMD to run from the mounted backend
     # and enable --reload for development
     # Add --log-level debug for more verbose Uvicorn output
-    # command: ["gunicorn", "backend.app:app", "--bind", "0.0.0.0:8080"]
+    # command: ["gunicorn", "vid2gif.backend.app:app", "--bind", "0.0.0.0:8080"]
     # Ensure tmp directory exists for uploads within the container's app context
     # Note: This tmp directory inside the container will be ephemeral
     # You might want to mount a persistent volume for tmp if needed across restarts
     # command: >
-    #   sh -c "mkdir -p /app/tmp && uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload"
+    #   sh -c "mkdir -p /app/tmp && uvicorn vid2gif.backend.app:app --host 0.0.0.0 --port 8000 --reload"
     # The above command variation ensures tmp exists if not created by app.py early enough
     # For now, the simpler command should work as app.py creates it. 
