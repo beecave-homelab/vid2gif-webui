@@ -1,10 +1,62 @@
 # vid2gif-webui
 
-Self-hosted web app for converting video files into animated GIFs using ffmpeg.
+Self-hosted web app for converting video files into animated GIFs using ffmpeg. This project provides a simple, browser-based interface for turning short video clips into GIFs. Upload multiple videos at once, trim each clip, choose the output size and frame rate, and download the generated GIFs directly from your browser. Everything runs on your own machine or server.
 
-This project gives you a simple, browser-based interface for turning short video clips into GIFs. You can upload multiple videos at once, trim each clip, choose the output size and frame rate, and then download the generated GIFs directly from your browser. Everything runs on your own machine or server.
+## Badges
 
-## Quick Start
+[![Python](https://img.shields.io/badge/Python-3.13+-blue)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.122+-green)](https://fastapi.tiangolo.com/)
+[![License](https://img.shields.io/badge/License-MIT-brightgreen)](LICENSE)
+[![Version](https://img.shields.io/badge/Version-0.3.0-blue)](VERSIONS.md)
+
+## Table of Contents
+
+- [Why This Project?](#why-this-project)
+- [Features](#features)
+- [What's Included](#whats-included)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Why This Project?
+
+Converting videos to GIFs typically requires command-line tools like ffmpeg with complex flags. This project wraps ffmpeg in a user-friendly web interface, making it easy to:
+
+- Convert videos without memorizing ffmpeg syntax
+- Trim clips visually with start/end sliders
+- Process multiple files in a single batch
+- Run everything locally without uploading to third-party services
+
+## Features
+
+- **Drag-and-drop video upload** — supports multiple files in a single batch
+- **Video trimming** — set start/end times per video with sliders and numeric inputs
+- **Configurable output** — scale (320px–4K) and FPS (1–20)
+- **Real-time progress** — per-file percentage and ETA via polling
+- **Concurrent conversion limiting** — semaphore-controlled ffmpeg processes
+- **Automatic job cleanup** — expired jobs and temp files removed after TTL
+- **Docker-ready** — production and development compose files included
+
+## What's Included
+
+```text
+vid2gif-webui/
+├── vid2gif/                    # Main application package
+│   ├── backend/                # FastAPI backend with service layer
+│   │   ├── app.py              # HTTP endpoints
+│   │   └── services/           # Business logic (job_store, ffmpeg_runner, etc.)
+│   └── frontend/               # Static HTML/CSS/JS
+├── tests/                      # Pytest test suite
+├── Dockerfile                  # Production container
+├── docker-compose.yaml         # Production deployment
+└── docker-compose.dev.yaml     # Development with hot-reload
+```
+
+## Installation
 
 If you just want to run the app and use the web interface, the easiest way is Docker.
 
@@ -56,7 +108,7 @@ Use this if you prefer running the backend directly on your machine.
    - `http://localhost:8080` (production)
    - `http://localhost:8081` (development)
 
-## Using the Web Interface
+## Usage
 
 Once the app is running (via Docker or locally):
 
@@ -81,7 +133,7 @@ Once the app is running (via Docker or locally):
    - When a job finishes, download links appear below the progress bar.
    - Click a link to download each generated GIF.
 
-## Configuration (Optional)
+## Configuration
 
 Most users can just run the app as-is. If you want to tune behavior (for example, where temporary files are stored or how many conversions run at once), you can change a few environment variables.
 
@@ -133,15 +185,42 @@ Port already in use:
   uvicorn vid2gif.backend.app:app --host 0.0.0.0 --port 8082 --reload
   ```
 
-## For Developers
+## Development
 
-If you are interested in the internal architecture, API details, testing, or coding standards:
+For detailed architecture, API documentation, and coding standards:
 
-- See **`project-overview.md`** for a full technical overview:
+- **[project-overview.md](project-overview.md)** — Full technical overview including:
   - Backend and frontend architecture
   - API endpoints and example payloads
   - Testing strategy and coverage
   - Docker images and development workflows
-- See **`AGENTS.md`** for coding rules (Ruff, Pytest, SOLID, configuration guidelines).
+- **[AGENTS.md](AGENTS.md)** — Coding rules (Ruff, Pytest, SOLID principles)
 
-These documents are the single source of truth for development and contribution details.
+### Quick Development Setup
+
+```bash
+# Install dependencies
+pdm install
+
+# Run linting and formatting
+pdm run lint
+pdm run format
+
+# Run tests
+pdm run test
+pdm run test-cov
+```
+
+## Contributing
+
+Pull requests are welcome. For major changes, please open an issue first to discuss the proposal.
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes using conventional commits
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
