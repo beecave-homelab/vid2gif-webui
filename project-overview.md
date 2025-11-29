@@ -12,7 +12,7 @@ A self-hosted web application for converting video files to animated GIFs using 
 [![Python](https://img.shields.io/badge/Python-3.13+-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.122+-green)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-brightgreen)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.3.1-blue)](#version-summary)
+[![Version](https://img.shields.io/badge/Version-0.3.2-blue)](#version-summary)
 
 ---
 
@@ -58,6 +58,7 @@ Access the WebUI at `http://localhost:8080` (local/PDM or production Docker) or 
 
 | Version | Date       | Type | Key Changes                                      |
 |---------|------------|------|--------------------------------------------------|
+| 0.3.2   | 2025-11-29 | 🐛   | Docker image labels and Compose images for GHCR |
 | 0.3.1   | 2025-11-29 | 🐛   | Fix frontend mount path, Python 3.13, dependencies |
 | 0.3.0   | 2025-11-28 | ♻️   | Service layer refactor, CI/CD, improved testability |
 | 0.2.0   | 2025-11-27 | ✨   | .env.example config, UX improvements, robustness |
