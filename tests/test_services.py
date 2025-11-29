@@ -8,18 +8,17 @@ from typing import Any
 
 import pytest
 
+from vid2gif.backend.services.command_runner import ProgressInfo, parse_ffmpeg_time
 from vid2gif.backend.services.conversion import (
     ALLOWED_SCALES,
     ConversionService,
     is_scale_allowed,
 )
-from vid2gif.backend.services.ffmpeg_runner import (
+from vid2gif.backend.services.conversion_strategy import (
     ConversionParams,
-    FFmpegRunner,
-    ProgressInfo,
-    build_ffmpeg_command,
-    parse_ffmpeg_time,
+    GifConversionStrategy,
 )
+from vid2gif.backend.services.ffmpeg_runner import FFmpegRunner
 from vid2gif.backend.services.file_manager import FileManager
 from vid2gif.backend.services.job_store import InMemoryJobStore, JobState
 
@@ -184,7 +183,7 @@ def test_job_state_to_dict() -> None:
 # --- FFmpegRunner tests ---
 
 
-def test_build_ffmpeg_command__original_scale() -> None:
+def test_gif_strategy__build_command_original_scale() -> None:
     """Build command without scale filter for original."""
     params = ConversionParams(
         input_path=Path("/tmp/input.mp4"),
@@ -194,8 +193,9 @@ def test_build_ffmpeg_command__original_scale() -> None:
         start_time_sec=0.0,
         end_time_sec=5.0,
     )
+    strategy = GifConversionStrategy()
 
-    cmd = build_ffmpeg_command(params)
+    cmd = strategy.build_command(params)
 
     assert "ffmpeg" in cmd
     assert "-ss" in cmd
@@ -206,7 +206,7 @@ def test_build_ffmpeg_command__original_scale() -> None:
     assert "scale=" not in cmd[cmd.index("-vf") + 1]
 
 
-def test_build_ffmpeg_command__with_scale() -> None:
+def test_gif_strategy__build_command_with_scale() -> None:
     """Build command with scale filter."""
     params = ConversionParams(
         input_path=Path("/tmp/input.mp4"),
@@ -216,8 +216,9 @@ def test_build_ffmpeg_command__with_scale() -> None:
         start_time_sec=1.0,
         end_time_sec=3.0,
     )
+    strategy = GifConversionStrategy()
 
-    cmd = build_ffmpeg_command(params)
+    cmd = strategy.build_command(params)
     vf_filter = cmd[cmd.index("-vf") + 1]
 
     assert "scale=320:-1" in vf_filter
@@ -262,14 +263,16 @@ def test_ffmpeg_runner__run_conversion_without_semaphore(
     """Run conversion without semaphore."""
     runner = FFmpegRunner(semaphore=None)
 
-    # Mock _execute to return success
-    def fake_execute(
-        params: ConversionParams,
-        on_progress: Any,  # noqa: ANN401, ARG001
+    # Mock the command runner's run_command method
+    def fake_run_command(
+        cmd: list[str],  # noqa: ARG001
+        *,
+        clip_duration: float | None = None,  # noqa: ARG001
+        on_progress: Any = None,  # noqa: ANN401, ARG001
     ) -> bool:
         return True
 
-    monkeypatch.setattr(runner, "_execute", fake_execute)
+    monkeypatch.setattr(runner._command_runner, "run_command", fake_run_command)
 
     params = ConversionParams(
         input_path=tmp_path / "in.mp4",
@@ -292,14 +295,16 @@ def test_ffmpeg_runner__run_conversion_with_semaphore(
     semaphore = threading.Semaphore(1)
     runner = FFmpegRunner(semaphore=semaphore)
 
-    # Mock _execute to return success
-    def fake_execute(
-        params: ConversionParams,
-        on_progress: Any,  # noqa: ANN401, ARG001
+    # Mock the command runner's run_command method
+    def fake_run_command(
+        cmd: list[str],  # noqa: ARG001
+        *,
+        clip_duration: float | None = None,  # noqa: ARG001
+        on_progress: Any = None,  # noqa: ANN401, ARG001
     ) -> bool:
         return True
 
-    monkeypatch.setattr(runner, "_execute", fake_execute)
+    monkeypatch.setattr(runner._command_runner, "run_command", fake_run_command)
 
     params = ConversionParams(
         input_path=tmp_path / "in.mp4",
@@ -319,6 +324,58 @@ def test_progress_info() -> None:
     info = ProgressInfo(percent=75.5, est_seconds_remaining=30.0)
     assert info.percent == 75.5
     assert info.est_seconds_remaining == 30.0
+
+
+# --- ConversionStrategy tests ---
+
+
+def test_gif_strategy__output_extension() -> None:
+    """GifConversionStrategy returns correct output extension."""
+    strategy = GifConversionStrategy()
+    assert strategy.output_extension == ".gif"
+
+
+def test_gif_strategy__description() -> None:
+    """GifConversionStrategy returns correct description."""
+    strategy = GifConversionStrategy()
+    assert strategy.description == "GIF conversion"
+
+
+def test_gif_strategy__build_command_includes_palette() -> None:
+    """GIF strategy includes palette generation for quality."""
+    params = ConversionParams(
+        input_path=Path("/tmp/input.mp4"),
+        output_path=Path("/tmp/output.gif"),
+        scale="original",
+        fps=10,
+        start_time_sec=0.0,
+        end_time_sec=5.0,
+    )
+    strategy = GifConversionStrategy()
+
+    cmd = strategy.build_command(params)
+    vf_filter = cmd[cmd.index("-vf") + 1]
+
+    assert "palettegen" in vf_filter
+    assert "paletteuse" in vf_filter
+    assert "-loop" in cmd
+    assert "0" in cmd  # infinite loop
+
+
+def test_ffmpeg_runner__uses_strategy() -> None:
+    """FFmpegRunner exposes strategy property."""
+    strategy = GifConversionStrategy()
+    runner = FFmpegRunner(strategy=strategy)
+
+    assert runner.strategy is strategy
+    assert runner.strategy.output_extension == ".gif"
+
+
+def test_ffmpeg_runner__defaults_to_gif_strategy() -> None:
+    """FFmpegRunner defaults to GifConversionStrategy."""
+    runner = FFmpegRunner()
+
+    assert isinstance(runner.strategy, GifConversionStrategy)
 
 
 # --- FileManager tests ---
@@ -356,12 +413,15 @@ def test_file_manager__write_input_file(tmp_path: Path) -> None:
 
 
 def test_file_manager__get_output_path(tmp_path: Path) -> None:
-    """Get output path with .gif extension."""
+    """Get output path with specified extension."""
     manager = FileManager(tmp_path)
 
-    path = manager.get_output_path("job1", "video.mp4")
-
+    path = manager.get_output_path("job1", "video.mp4", ".gif")
     assert path == tmp_path / "job1" / "video.gif"
+
+    # Also works with other extensions
+    path_mp3 = manager.get_output_path("job1", "audio.wav", ".mp3")
+    assert path_mp3 == tmp_path / "job1" / "audio.mp3"
 
 
 def test_file_manager__cleanup_input_file(tmp_path: Path) -> None:
