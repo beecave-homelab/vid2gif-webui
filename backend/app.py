@@ -303,4 +303,4 @@ def download(job_id: str, gif_filename: str) -> Response:
 
 
 # Serve the frontend
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+app.mount("/", StaticFiles(directory="vid2gif/frontend", html=True), name="frontend")
