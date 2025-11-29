@@ -1,5 +1,5 @@
 # ─── Runtime Stage ─────────────────────────────────────────────────────────────
-FROM python:3.10-slim
+FROM python:3.13-slim
 # Install ffmpeg & build tools (gcc is needed for some optional uvicorn deps)
 RUN apt-get update && apt-get install -y ffmpeg gcc && rm -rf /var/lib/apt/lists/*
 
