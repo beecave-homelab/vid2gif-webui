@@ -2,12 +2,34 @@
 
 ## ToC
 
-- [v0.3.1 (Current)](#v031-current---29-11-2025)
+- [v0.3.2 (Current)](#v032-current---29-11-2025)
+- [v0.3.1](#v031---29-11-2025)
 - [v0.3.0](#v030---28-11-2025)
 - [v0.2.0](#v020---27-11-2025)
 - [v0.1.0](#v010---26-11-2025)
 
-## **v0.3.1** (Current) - *29-11-2025*
+## **v0.3.2** (Current) - *29-11-2025*
+
+### 🐛 Brief Description (v0.3.2)
+
+Patch release to fix container image metadata and Compose configuration so GitHub Actions can correctly build and push images to GitHub Container Registry (GHCR).
+
+### **Bug Fixes in v0.3.2**
+
+- **Fixed**: Missing OCI image metadata for source repository in Docker images.
+  - **Issue**: Built images lacked a canonical `org.opencontainers.image.source` label.
+  - **Solution**: Added `LABEL org.opencontainers.image.source=https://github.com/beecave-homelab/vid2gif-webui` to both `Dockerfile` and `Dockerfile.dev`.
+- **Fixed**: Docker Compose images not aligned with GHCR publishing workflow.
+  - **Issue**: `docker-compose.yaml` and `docker-compose.dev.yaml` did not reference the GHCR image names used by the CI workflows.
+  - **Solution**: Updated production compose to use `ghcr.io/beecave-homelab/vid2gif-webui:main` and development compose to use `ghcr.io/beecave-homelab/vid2gif-webui:dev`, with explicit container names.
+
+### **Key Commits in v0.3.2**
+
+`eac6a56`, `66770cb`
+
+---
+
+## **v0.3.1** - *29-11-2025*
 
 ### 🐛 Brief Description (v0.3.1)
 
