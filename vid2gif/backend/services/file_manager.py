@@ -164,17 +164,23 @@ class FileManager:
         logging.info("Job %s: Saved %s to %s", job_id, filename, file_path)
         return file_path
 
-    def get_output_path(self, job_id: str, original_name: str) -> Path:
+    def get_output_path(
+        self,
+        job_id: str,
+        original_name: str,
+        output_extension: str,
+    ) -> Path:
         """Get the output path for a converted file.
 
         Args:
             job_id: The job identifier.
             original_name: Original input filename.
+            output_extension: Output file extension (e.g., '.gif', '.mp3').
 
         Returns:
-            Path where output GIF should be written.
+            Path where output file should be written.
         """
-        output_name = Path(original_name).stem + ".gif"
+        output_name = Path(original_name).stem + output_extension
         return self._base_dir / job_id / output_name
 
     def cleanup_input_file(self, path: Path) -> None:
