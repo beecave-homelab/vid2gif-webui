@@ -17,4 +17,4 @@ COPY ./vid2gif /app/vid2gif
 
 EXPOSE 8080
 # Default command reflecting the structure used in compose
-CMD ["gunicorn", "vid2gif.backend.app:app", "--bind", "0.0.0.0:8080"] 
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8080", "vid2gif.backend.app:app"]
