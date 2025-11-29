@@ -14,7 +14,8 @@ dependencies = [
     "uvicorn[standard]>=0.38.0",
     "python-multipart>=0.0.20",
     "gunicorn>=23.0.0",
-    "python-env>=1.0.0"
+    "python-env>=1.0.0",
+    "httpx>=0.28.1"
 ]
 
 [tool.pdm.dev-dependencies]
