@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+    image: ghcr.io/beecave-homelab/vid2gif-webui:dev
+    container_name: vid2gif-webui-dev
     ports:
       - "8081:8081"
     restart: unless-stopped
