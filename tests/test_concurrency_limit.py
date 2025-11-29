@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 import time
 
-from backend import app
+from vid2gif.backend import app
 
 
 def test_run_with_ffmpeg_semaphore__limits_concurrent_tasks() -> None:

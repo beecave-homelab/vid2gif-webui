@@ -19,7 +19,11 @@ from vid2gif.backend.services.conversion import ConversionService, is_scale_allo
 from vid2gif.backend.services.ffmpeg_runner import FFmpegRunner
 from vid2gif.backend.services.file_manager import FileManager
 from vid2gif.backend.services.job_store import InMemoryJobStore
-from vid2gif.backend.utils.constant import FFMPEG_MAX_CONCURRENT, JOB_TTL_SECONDS, TMP_BASE_DIR
+from vid2gif.backend.utils.constant import (
+    FFMPEG_MAX_CONCURRENT,
+    JOB_TTL_SECONDS,
+    TMP_BASE_DIR,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")

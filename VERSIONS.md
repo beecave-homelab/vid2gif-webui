@@ -2,10 +2,73 @@
 
 ## ToC
 
-- [v0.2.0 (Current)](#v020-current---27-11-2025)
+- [v0.3.1 (Current)](#v031-current---29-11-2025)
+- [v0.3.0](#v030---28-11-2025)
+- [v0.2.0](#v020---27-11-2025)
 - [v0.1.0](#v010---26-11-2025)
 
-## **v0.2.0** (Current) - *27-11-2025*
+## **v0.3.1** (Current) - *29-11-2025*
+
+### 🐛 Brief Description (v0.3.1)
+
+Patch release fixing inconsistencies introduced during the v0.3.0 refactor. Corrects the legacy backend static files mount path, updates Python version to 3.13 in CI and Docker, and adds missing HTTPx dependency.
+
+### **Bug Fixes in v0.3.1**
+
+- **Fixed**: Legacy entrypoint (`uvicorn backend.app:app`) failed to start.
+  - **Issue**: `StaticFiles(directory="frontend")` raised `RuntimeError` because `frontend/` was removed in v0.3.0.
+  - **Root Cause**: Static mount path not updated when frontend moved to `vid2gif/frontend/`.
+  - **Solution**: Updated mount to `vid2gif/frontend`.
+- **Fixed**: Python version mismatch in CI workflow and Dockerfiles.
+  - **Issue**: CI used Python 3.12 while `pyproject.toml` requires `>=3.13`.
+  - **Solution**: Updated `pr-ci.yaml` and Dockerfiles to Python 3.13.
+- **Fixed**: Missing `httpx` dependency for test client.
+  - **Issue**: `pytest` with FastAPI `TestClient` requires `httpx`.
+  - **Solution**: Added `httpx>=0.28.1` to project dependencies.
+
+### **Key Commits in v0.3.1**
+
+`e07dad2`, `ef3d20a`, `a401e6b`, `cbbb870`
+
+---
+
+## **v0.3.0** - *28-11-2025*
+
+### ♻️ Brief Description (v0.3.0)
+
+Major architectural refactor introducing a modular service layer following SOLID principles (SRP/OCP). Backend restructured into `vid2gif/` package with dependency injection for improved testability. Added GitHub Actions CI/CD workflows.
+
+### **New Features in v0.3.0**
+
+- **Added**: GitHub Actions workflow for PR validation (lint, format, tests).
+- **Added**: GitHub Actions workflow for Docker image builds on main branch.
+- **Added**: Service layer architecture with dedicated modules:
+  - `job_store.py` — Thread-safe job state management
+  - `ffmpeg_runner.py` — FFmpeg subprocess execution & progress parsing
+  - `file_manager.py` — Filesystem I/O & cleanup
+  - `conversion.py` — Orchestration coordinator
+
+### **Bug Fixes in v0.3.0**
+
+- N/A (refactor release).
+
+### **Improvements in v0.3.0**
+
+- **Refactored**: Moved `backend/` and `frontend/` into `vid2gif/` package structure.
+- **Improved**: Backend `app.py` is now a thin HTTP layer delegating to services.
+- **Enhanced**: Dependency injection enables easy mocking and unit testing.
+- **Updated**: All tests updated for new package structure.
+- **Added**: Comprehensive service layer tests (`test_services.py`, `test_backend_app_flow.py`).
+- **Updated**: Docker configurations for new package paths.
+- **Updated**: Documentation reflecting new architecture.
+
+### **Key Commits in v0.3.0**
+
+`1fa2a32`, `48ea90a`, `47409ab`, `c18340b`, `0c9315d`
+
+---
+
+## **v0.2.0** - *27-11-2025*
 
 ### Brief Description (v0.2.0)
 

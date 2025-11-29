@@ -8,7 +8,7 @@ import io
 import pytest
 from fastapi import HTTPException, UploadFile
 
-from backend.app import convert, is_scale_allowed
+from vid2gif.backend.app import convert, is_scale_allowed
 
 
 def test_is_scale_allowed__accepts_frontend_scale_options() -> None:
