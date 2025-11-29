@@ -1,5 +1,9 @@
 # ─── Runtime Stage ─────────────────────────────────────────────────────────────
 FROM python:3.13-slim
+
+# Metadata
+LABEL org.opencontainers.image.source=https://github.com/beecave-homelab/vid2gif-webui
+
 # Install ffmpeg & build tools (gcc is needed for some optional uvicorn deps)
 RUN apt-get update && apt-get install -y ffmpeg gcc && rm -rf /var/lib/apt/lists/*
 
