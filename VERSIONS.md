@@ -11,7 +11,7 @@
 
 ### 🐛 Brief Description (v0.3.1)
 
-Patch release fixing inconsistencies introduced during the v0.3.0 refactor. Corrects the legacy backend static files mount path, updates Python version to 3.13 in CI and Docker, and adds missing HTTPx dependency.
+Patch release fixing inconsistencies introduced during the v0.3.0 refactor. Corrects the legacy backend static files mount path, updates Python version to 3.13 in CI and Docker, adds missing HTTPx dependency, and removes the duplicate legacy `backend/` directory.
 
 ### **Bug Fixes in v0.3.1**
 
@@ -25,6 +25,12 @@ Patch release fixing inconsistencies introduced during the v0.3.0 refactor. Corr
 - **Fixed**: Missing `httpx` dependency for test client.
   - **Issue**: `pytest` with FastAPI `TestClient` requires `httpx`.
   - **Solution**: Added `httpx>=0.28.1` to project dependencies.
+
+### 🧹 **Cleanup in v0.3.1**
+
+- **Removed**: Legacy `backend/` directory containing duplicate `app.py`.
+  - **Issue**: `backend/app.py` was a full duplicate of `vid2gif/backend/app.py`, not a re-export shim.
+  - **Solution**: Removed the legacy directory; all code now uses `vid2gif.backend` exclusively.
 
 ### **Key Commits in v0.3.1**
 
