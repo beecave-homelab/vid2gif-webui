@@ -2,13 +2,41 @@
 
 ## ToC
 
-- [v0.3.2 (Current)](#v032-current---29-11-2025)
+- [v0.4.0 (Current)](#v040-current---29-11-2025)
+- [v0.3.2](#v032---29-11-2025)
 - [v0.3.1](#v031---29-11-2025)
 - [v0.3.0](#v030---28-11-2025)
 - [v0.2.0](#v020---27-11-2025)
 - [v0.1.0](#v010---26-11-2025)
 
-## **v0.3.2** (Current) - *29-11-2025*
+## **v0.4.0** (Current) - *29-11-2025*
+
+### ♻️ Brief Description (v0.4.0)
+
+Minor release introducing full SRP (Single Responsibility Principle) compliance through a Strategy Pattern refactor. The service layer is now fully extensible for different conversion types (GIF, audio extraction, etc.) without modifying core infrastructure.
+
+### ✨ **New Features in v0.4.0**
+
+- **Added**: `ConversionStrategy` protocol for pluggable conversion implementations.
+- **Added**: `GifConversionStrategy` implementing video-to-GIF conversion logic.
+- **Added**: `CommandRunner` module for generic subprocess execution with progress parsing.
+- **Added**: `ConversionParams` dataclass for type-safe conversion parameters.
+
+### 🔧 **Improvements in v0.4.0**
+
+- **Refactored**: `FFmpegRunner` is now a thin adapter delegating to strategy and runner.
+- **Refactored**: `FileManager.get_output_path()` accepts extension parameter (no hardcoded `.gif`).
+- **Refactored**: `ConversionService` uses strategy for output extension (pure orchestration).
+- **Improved**: Clear separation between infrastructure (generic) and use-case specifics (GIF).
+- **Enhanced**: Architecture now supports adding new conversion types with minimal changes.
+
+### 📝 **Key Commits in v0.4.0**
+
+`ad3bf88`, `c0e9c6a`
+
+---
+
+## **v0.3.2** - *29-11-2025*
 
 ### 🐛 Brief Description (v0.3.2)
 

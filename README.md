@@ -7,7 +7,7 @@ Self-hosted web app for converting video files into animated GIFs using ffmpeg. 
 [![Python](https://img.shields.io/badge/Python-3.13+-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.122+-green)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-brightgreen)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.3.2-blue)](VERSIONS.md)
+[![Version](https://img.shields.io/badge/Version-0.4.0-blue)](VERSIONS.md)
 
 ## Table of Contents
 
