@@ -8,7 +8,12 @@ from typing import Any
 
 import pytest
 
-from vid2gif.backend.services.command_runner import ProgressInfo, parse_ffmpeg_time
+from vid2gif.backend.services.command_runner import (
+    CommandRunner,
+    FFmpegProgressParser,
+    ProgressInfo,
+    parse_ffmpeg_time,
+)
 from vid2gif.backend.services.conversion import (
     ALLOWED_SCALES,
     ConversionService,
@@ -232,6 +237,35 @@ def test_parse_ffmpeg_time() -> None:
     assert parse_ffmpeg_time("01:00:00.00") == 3600.0
 
 
+def test_ffmpeg_progress_parser__returns_none_without_time() -> None:
+    """Return None when line has no time marker."""
+    parser = FFmpegProgressParser()
+
+    progress = parser.parse_progress_line("no time here", clip_duration=10.0, start_time=0.0)
+
+    assert progress is None
+
+
+def test_ffmpeg_progress_parser__parses_valid_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Parse a valid ffmpeg progress line into ProgressInfo."""
+    parser = FFmpegProgressParser()
+
+    def fake_time() -> float:
+        return 10.0
+
+    monkeypatch.setattr("vid2gif.backend.services.command_runner.time.time", fake_time)
+
+    progress = parser.parse_progress_line(
+        "frame=1 time=00:00:01.50 bitrate=0.0kbits/s",
+        clip_duration=3.0,
+        start_time=5.0,
+    )
+
+    assert progress is not None
+    assert progress.percent == pytest.approx(50.0)
+    assert progress.est_seconds_remaining == pytest.approx(5.0)
+
+
 def test_conversion_params_clip_duration() -> None:
     """ConversionParams.clip_duration calculates correctly."""
     params = ConversionParams(
@@ -254,6 +288,100 @@ def test_conversion_params_clip_duration() -> None:
         end_time_sec=0.0,
     )
     assert params2.clip_duration == 0.01
+
+
+def test_command_runner__run_command_without_semaphore(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run command and parse progress without semaphore."""
+    events: list[ProgressInfo] = []
+
+    class DummyProc:
+        def __init__(self) -> None:
+            self.stderr = [
+                "frame=1 time=00:00:01.00 bitrate=0.0kbits/s",
+                "frame=2 time=00:00:02.00 bitrate=0.0kbits/s",
+            ]
+
+        def wait(self) -> int:
+            return 0
+
+    def fake_popen(
+        cmd: list[str],  # noqa: ARG001
+        stderr: Any,  # noqa: ARG001
+        text: bool,  # noqa: ARG001
+        encoding: str,  # noqa: ARG001
+        errors: str,  # noqa: ARG001
+    ) -> DummyProc:
+        return DummyProc()
+
+    monkeypatch.setattr("vid2gif.backend.services.command_runner.subprocess.Popen", fake_popen)
+
+    runner = CommandRunner()
+
+    def on_progress(info: ProgressInfo) -> None:
+        events.append(info)
+
+    result = runner.run_command(
+        [
+            "ffmpeg",
+            "-i",
+            "in.mp4",
+            "out.gif",
+        ],
+        clip_duration=2.0,
+        on_progress=on_progress,
+    )
+
+    assert result is True
+    assert events
+    assert events[-1].percent <= 100.0
+
+
+def test_command_runner__run_command_with_semaphore(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run command while guarding with a semaphore."""
+
+    class DummyProc:
+        def __init__(self) -> None:
+            self.stderr: list[str] = []
+
+        def wait(self) -> int:
+            return 0
+
+    def fake_popen(
+        cmd: list[str], stderr: Any, text: bool, encoding: str, errors: str
+    ) -> DummyProc:  # noqa: ARG001
+        return DummyProc()
+
+    monkeypatch.setattr("vid2gif.backend.services.command_runner.subprocess.Popen", fake_popen)
+
+    semaphore = threading.Semaphore(1)
+    runner = CommandRunner(semaphore=semaphore)
+
+    result = runner.run_command(["echo", "ok"])
+
+    assert result is True
+
+
+def test_command_runner__run_command_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Return False when subprocess exits with non-zero code."""
+
+    class DummyProc:
+        def __init__(self) -> None:
+            self.stderr: list[str] = []
+
+        def wait(self) -> int:
+            return 1
+
+    def fake_popen(
+        cmd: list[str], stderr: Any, text: bool, encoding: str, errors: str
+    ) -> DummyProc:  # noqa: ARG001
+        return DummyProc()
+
+    monkeypatch.setattr("vid2gif.backend.services.command_runner.subprocess.Popen", fake_popen)
+
+    runner = CommandRunner()
+    result = runner.run_command(["false"])
+
+    assert result is False
 
 
 def test_ffmpeg_runner__run_conversion_without_semaphore(
@@ -569,3 +697,116 @@ def test_conversion_service__record_skip_error(tmp_path: Path) -> None:
     assert job is not None
     assert job["error_files"] == 1
     assert job["status"] == "failed"
+
+
+def test_conversion_service__process_file_success_finalizes_job(tmp_path: Path) -> None:
+    """Finalize job with success when last file succeeds."""
+    store = InMemoryJobStore()
+    file_manager = FileManager(tmp_path)
+
+    class FakeRunner:
+        def __init__(self) -> None:
+            self.strategy = GifConversionStrategy()
+
+        def run_conversion(self, params: ConversionParams, on_progress: Any = None) -> bool:  # noqa: ARG002
+            if on_progress is not None:
+                on_progress(ProgressInfo(percent=50.0, est_seconds_remaining=10.0))
+                on_progress(ProgressInfo(percent=100.0, est_seconds_remaining=0.0))
+            return True
+
+    runner = FakeRunner()
+    service = ConversionService(store, file_manager, runner)
+
+    lock = service.create_job("job1", 1)
+    service.process_file(
+        job_id="job1",
+        lock=lock,
+        original_name="video.mp4",
+        file_bytes=b"data",
+        scale="original",
+        fps=10,
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        file_index=1,
+        total_files=1,
+    )
+
+    job = service.get_job("job1")
+    assert job is not None
+    assert job["status"] == "done"
+    assert job["successful_files"] == 1
+    assert job["error_files"] == 0
+    assert job["current_file_percent"] == 100.0
+    assert job["downloads"]
+
+
+def test_conversion_service__process_file_partial_updates_status(tmp_path: Path) -> None:
+    """Update status when not all files are processed yet."""
+    store = InMemoryJobStore()
+    file_manager = FileManager(tmp_path)
+
+    class FakeRunner:
+        def __init__(self) -> None:
+            self.strategy = GifConversionStrategy()
+
+        def run_conversion(self, params: ConversionParams, on_progress: Any = None) -> bool:  # noqa: ARG002
+            if on_progress is not None:
+                on_progress(ProgressInfo(percent=100.0, est_seconds_remaining=0.0))
+            return True
+
+    runner = FakeRunner()
+    service = ConversionService(store, file_manager, runner)
+
+    lock = service.create_job("job1", 2)
+    service.process_file(
+        job_id="job1",
+        lock=lock,
+        original_name="video.mp4",
+        file_bytes=b"data",
+        scale="original",
+        fps=10,
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        file_index=1,
+        total_files=2,
+    )
+
+    job = service.get_job("job1")
+    assert job is not None
+    assert job["processed_files"] == 1
+    assert job["status"].startswith("Processed 1/2")
+
+
+def test_conversion_service__process_file_failure_records_error(tmp_path: Path) -> None:
+    """Record error and mark job failed when conversion fails."""
+    store = InMemoryJobStore()
+    file_manager = FileManager(tmp_path)
+
+    class FakeRunner:
+        def __init__(self) -> None:
+            self.strategy = GifConversionStrategy()
+
+        def run_conversion(self, params: ConversionParams, on_progress: Any = None) -> bool:  # noqa: ARG002
+            return False
+
+    runner = FakeRunner()
+    service = ConversionService(store, file_manager, runner)
+
+    lock = service.create_job("job1", 1)
+    service.process_file(
+        job_id="job1",
+        lock=lock,
+        original_name="video.mp4",
+        file_bytes=b"data",
+        scale="original",
+        fps=10,
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        file_index=1,
+        total_files=1,
+    )
+
+    job = service.get_job("job1")
+    assert job is not None
+    assert job["status"] == "failed"
+    assert job["error_files"] == 1
