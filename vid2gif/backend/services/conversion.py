@@ -45,10 +45,14 @@ def is_scale_allowed(scale: str) -> bool:
 
 
 class ConversionService:
-    """Orchestrates video-to-GIF conversion jobs.
+    """Orchestrates media conversion jobs.
 
     Coordinates between job state management, file operations, and FFmpeg
-    execution. This is the main entry point for conversion logic.
+    execution. The specific conversion type (GIF, audio, etc.) is determined
+    by the strategy configured in the FFmpegRunner.
+
+    Single Responsibility: Job orchestration only. Does not know about
+    conversion-specific details (those live in the strategy).
     """
 
     def __init__(
@@ -157,7 +161,7 @@ class ConversionService:
             original_name: Original filename of the video.
             file_bytes: Raw bytes of the video file.
             scale: Scale factor (e.g., "320:-1") or "original".
-            fps: Frames per second for output GIF.
+            fps: Frames per second for output.
             start_time_sec: Start time in seconds for trimming.
             end_time_sec: End time in seconds for trimming.
             file_index: Index of current file (1-based).
@@ -180,7 +184,8 @@ class ConversionService:
 
         try:
             input_path = self._file_manager.write_input_file(job_id, input_filename, file_bytes)
-            output_path = self._file_manager.get_output_path(job_id, original_name)
+            output_ext = self._ffmpeg_runner.strategy.output_extension
+            output_path = self._file_manager.get_output_path(job_id, original_name, output_ext)
 
             params = ConversionParams(
                 input_path=input_path,
@@ -210,7 +215,8 @@ class ConversionService:
                     return
 
                 if success:
-                    output_name = Path(original_name).stem + ".gif"
+                    output_ext = self._ffmpeg_runner.strategy.output_extension
+                    output_name = Path(original_name).stem + output_ext
                     download_url = f"/download/{job_id}/{output_name}"
                     is_last = self._job_store.record_file_success(
                         job_id, original_name, download_url

@@ -12,7 +12,7 @@ A self-hosted web application for converting video files to animated GIFs using 
 [![Python](https://img.shields.io/badge/Python-3.13+-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.122+-green)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-brightgreen)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.3.2-blue)](#version-summary)
+[![Version](https://img.shields.io/badge/Version-0.5.0-blue)](#version-summary)
 
 ---
 
@@ -58,6 +58,8 @@ Access the WebUI at `http://localhost:8080` (local/PDM or production Docker) or 
 
 | Version | Date       | Type | Key Changes                                      |
 |---------|------------|------|--------------------------------------------------|
+| 0.5.0   | 2025-11-30 | 🎨   | WebUI SVG favicon, icon integration, ~90% test coverage |
+| 0.4.0   | 2025-11-29 | ♻️   | SRP refactor: Strategy pattern, extensible arch  |
 | 0.3.2   | 2025-11-29 | 🐛   | Docker image labels and Compose images for GHCR |
 | 0.3.1   | 2025-11-29 | 🐛   | Fix frontend mount path, Python 3.13, dependencies |
 | 0.3.0   | 2025-11-28 | ♻️   | Service layer refactor, CI/CD, improved testability |
@@ -85,14 +87,16 @@ Access the WebUI at `http://localhost:8080` (local/PDM or production Docker) or 
 ```text
 vid2gif-webui/
 ├── vid2gif/                    # Main application package
-│   ├── __init__.py             # Package init
+│   ├── __init__.py             # Package init with __version__
 │   ├── backend/                # Python FastAPI backend
 │   │   ├── app.py              # Thin HTTP layer: endpoints, routing
-│   │   ├── services/           # Service layer (SRP/OCP)
-│   │   │   ├── conversion.py   # Conversion orchestration
-│   │   │   ├── ffmpeg_runner.py # FFmpeg subprocess execution
-│   │   │   ├── file_manager.py # Filesystem I/O, cleanup
-│   │   │   └── job_store.py    # Job state management
+│   │   ├── services/           # Service layer (SRP-compliant)
+│   │   │   ├── command_runner.py     # Generic subprocess execution + progress
+│   │   │   ├── conversion.py         # Job orchestration (strategy-agnostic)
+│   │   │   ├── conversion_strategy.py # Strategy protocol + GIF implementation
+│   │   │   ├── ffmpeg_runner.py      # Thin adapter: strategy + runner
+│   │   │   ├── file_manager.py       # Filesystem I/O, cleanup (extension-agnostic)
+│   │   │   └── job_store.py          # Thread-safe job state management
 │   │   └── utils/
 │   │       ├── constant.py     # Centralized configuration constants
 │   │       └── env_loader.py   # Environment variable loader
@@ -126,15 +130,92 @@ vid2gif-webui/
 ### Backend (`vid2gif/backend/`)
 
 - **Framework**: FastAPI with Uvicorn (dev) / Gunicorn (prod)
-- **Service Layer**: Modular architecture following SRP/OCP principles
-  - `app.py` — Thin HTTP layer, endpoints only
-  - `services/job_store.py` — Thread-safe job state management
-  - `services/ffmpeg_runner.py` — FFmpeg subprocess execution & progress parsing
-  - `services/file_manager.py` — Filesystem I/O, temp dirs, cleanup
-  - `services/conversion.py` — Orchestration coordinator
+- **Design Pattern**: Strategy Pattern with full SRP (Single Responsibility Principle) compliance
 - **Concurrency Control**: `threading.Semaphore` limits simultaneous ffmpeg processes (default: 4)
 - **Dependency Injection**: Services are injected, enabling easy testing and mocking
 - **Cleanup**: Expired jobs removed opportunistically on each `/convert` request
+
+### Service Layer Architecture
+
+The service layer separates **infrastructure** (generic, reusable) from **use-case specifics** (conversion type):
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           app.py (HTTP Layer)                           │
+│                    Thin endpoint routing, validation                    │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    ConversionService (Orchestration)                    │
+│         Coordinates jobs, files, and conversion execution               │
+│                    Does NOT know about GIF specifics                    │
+└─────────────────────────────────────────────────────────────────────────┘
+          │                         │                         │
+          ▼                         ▼                         ▼
+┌──────────────────┐   ┌──────────────────────┐   ┌───────────────────────┐
+│    JobStore      │   │     FileManager      │   │     FFmpegRunner      │
+│ (Job State)      │   │ (Filesystem I/O)     │   │ (Conversion Adapter)  │
+│                  │   │                      │   │                       │
+│ • create_job()   │   │ • write_input_file() │   │ strategy: Strategy    │
+│ • update_progress│   │ • get_output_path()  │   │ runner: CommandRunner │
+│ • record_success │   │ • cleanup_expired()  │   │                       │
+└──────────────────┘   └──────────────────────┘   └───────────────────────┘
+                                                               │
+                              ┌────────────────────────────────┤
+                              │                                │
+                              ▼                                ▼
+               ┌─────────────────────────┐    ┌─────────────────────────────┐
+               │   ConversionStrategy    │    │       CommandRunner         │
+               │       (Protocol)        │    │   (Subprocess Execution)    │
+               │                         │    │                             │
+               │ • output_extension      │    │ • run_command()             │
+               │ • description           │    │ • FFmpegProgressParser      │
+               │ • build_command()       │    │ • Semaphore control         │
+               └─────────────────────────┘    └─────────────────────────────┘
+                              │
+                              ▼
+               ┌─────────────────────────┐
+               │  GifConversionStrategy  │
+               │    (Implementation)     │
+               │                         │
+               │ • extension: ".gif"     │
+               │ • palettegen/paletteuse │
+               │ • -loop 0               │
+               └─────────────────────────┘
+```
+
+### Service Module Responsibilities
+
+| Module | Layer | Single Responsibility |
+|--------|-------|----------------------|
+| `job_store.py` | Infrastructure | Thread-safe job state storage |
+| `file_manager.py` | Infrastructure | Extension-agnostic filesystem I/O |
+| `command_runner.py` | Infrastructure | Generic subprocess execution + progress parsing |
+| `conversion_strategy.py` | Use-case | Defines what command to run and output format |
+| `ffmpeg_runner.py` | Adapter | Coordinates strategy + command runner |
+| `conversion.py` | Orchestration | Coordinates jobs, files, and execution |
+| `app.py` | HTTP | Thin endpoint routing and validation |
+
+### Extensibility
+
+Adding a new conversion type (e.g., audio extraction) requires only implementing the `ConversionStrategy` protocol:
+
+```python
+class AudioExtractionStrategy:
+    @property
+    def output_extension(self) -> str:
+        return ".mp3"
+    
+    @property
+    def description(self) -> str:
+        return "Audio extraction"
+    
+    def build_command(self, params: ConversionParams) -> list[str]:
+        return ["ffmpeg", "-i", str(params.input_path), "-vn", str(params.output_path)]
+```
+
+Then inject it: `FFmpegRunner(strategy=AudioExtractionStrategy())`
 
 ### Frontend (`vid2gif/frontend/`)
 
@@ -142,6 +223,7 @@ vid2gif-webui/
 - **Video Editor**: Per-file start/end sliders synced with `<video>` element
 - **Polling**: `pollProgress()` fetches `/progress?job_id=...` every second until done
 - **Dark Theme**: Minimal CSS with responsive layout
+- **SVG favicon**: `vid2gif/frontend/public/favicon.svg` wired into `index.html`
 
 ### Data Flow
 
@@ -498,6 +580,9 @@ test_<unit_under_test>__<expected_behavior>()
 
 Guideline: **≥ 85%** line coverage. CI should fail below threshold.
 
+Current status (v0.5.0): ~90% line coverage for the `vid2gif` package, with core backend and
+service-layer modules above the threshold.
+
 ---
 
 ## Development Workflow
@@ -546,10 +631,12 @@ Run lint + tests before committing. Use conventional commit format.
 | File                                    | Purpose                                         |
 |-----------------------------------------|-------------------------------------------------|
 | `vid2gif/backend/app.py`                | FastAPI endpoints (thin HTTP layer)             |
-| `vid2gif/backend/services/conversion.py`| Conversion orchestration                        |
-| `vid2gif/backend/services/job_store.py` | Job state management                            |
-| `vid2gif/backend/services/ffmpeg_runner.py` | FFmpeg execution & progress parsing         |
-| `vid2gif/backend/services/file_manager.py`  | Filesystem I/O & cleanup                    |
+| `vid2gif/backend/services/conversion.py`| Job orchestration (strategy-agnostic)           |
+| `vid2gif/backend/services/conversion_strategy.py` | Strategy protocol + GIF implementation |
+| `vid2gif/backend/services/command_runner.py` | Generic subprocess execution + progress    |
+| `vid2gif/backend/services/ffmpeg_runner.py` | Thin adapter: strategy + command runner     |
+| `vid2gif/backend/services/file_manager.py`  | Extension-agnostic filesystem I/O           |
+| `vid2gif/backend/services/job_store.py` | Thread-safe job state management                |
 | `vid2gif/backend/utils/constant.py`     | Centralized configuration constants             |
 | `vid2gif/frontend/index.html`           | Main HTML structure                             |
 | `vid2gif/frontend/script.js`            | Client-side upload, polling, video editor       |

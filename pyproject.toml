@@ -1,6 +1,6 @@
 [project]
 name = "vid2gif-webui"
-version = "0.3.2"
+version = "0.5.0"
 description = "A webui for converting video files into GIF using ffmpeg"
 authors = [
     {name = "elvee", email = "lowie@beecave.nl"},

@@ -8,18 +8,22 @@ from typing import Any
 
 import pytest
 
+from vid2gif.backend.services.command_runner import (
+    CommandRunner,
+    FFmpegProgressParser,
+    ProgressInfo,
+    parse_ffmpeg_time,
+)
 from vid2gif.backend.services.conversion import (
     ALLOWED_SCALES,
     ConversionService,
     is_scale_allowed,
 )
-from vid2gif.backend.services.ffmpeg_runner import (
+from vid2gif.backend.services.conversion_strategy import (
     ConversionParams,
-    FFmpegRunner,
-    ProgressInfo,
-    build_ffmpeg_command,
-    parse_ffmpeg_time,
+    GifConversionStrategy,
 )
+from vid2gif.backend.services.ffmpeg_runner import FFmpegRunner
 from vid2gif.backend.services.file_manager import FileManager
 from vid2gif.backend.services.job_store import InMemoryJobStore, JobState
 
@@ -184,7 +188,7 @@ def test_job_state_to_dict() -> None:
 # --- FFmpegRunner tests ---
 
 
-def test_build_ffmpeg_command__original_scale() -> None:
+def test_gif_strategy__build_command_original_scale() -> None:
     """Build command without scale filter for original."""
     params = ConversionParams(
         input_path=Path("/tmp/input.mp4"),
@@ -194,8 +198,9 @@ def test_build_ffmpeg_command__original_scale() -> None:
         start_time_sec=0.0,
         end_time_sec=5.0,
     )
+    strategy = GifConversionStrategy()
 
-    cmd = build_ffmpeg_command(params)
+    cmd = strategy.build_command(params)
 
     assert "ffmpeg" in cmd
     assert "-ss" in cmd
@@ -206,7 +211,7 @@ def test_build_ffmpeg_command__original_scale() -> None:
     assert "scale=" not in cmd[cmd.index("-vf") + 1]
 
 
-def test_build_ffmpeg_command__with_scale() -> None:
+def test_gif_strategy__build_command_with_scale() -> None:
     """Build command with scale filter."""
     params = ConversionParams(
         input_path=Path("/tmp/input.mp4"),
@@ -216,8 +221,9 @@ def test_build_ffmpeg_command__with_scale() -> None:
         start_time_sec=1.0,
         end_time_sec=3.0,
     )
+    strategy = GifConversionStrategy()
 
-    cmd = build_ffmpeg_command(params)
+    cmd = strategy.build_command(params)
     vf_filter = cmd[cmd.index("-vf") + 1]
 
     assert "scale=320:-1" in vf_filter
@@ -229,6 +235,35 @@ def test_parse_ffmpeg_time() -> None:
     assert parse_ffmpeg_time("00:00:01.50") == 1.5
     assert parse_ffmpeg_time("00:01:30.00") == 90.0
     assert parse_ffmpeg_time("01:00:00.00") == 3600.0
+
+
+def test_ffmpeg_progress_parser__returns_none_without_time() -> None:
+    """Return None when line has no time marker."""
+    parser = FFmpegProgressParser()
+
+    progress = parser.parse_progress_line("no time here", clip_duration=10.0, start_time=0.0)
+
+    assert progress is None
+
+
+def test_ffmpeg_progress_parser__parses_valid_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Parse a valid ffmpeg progress line into ProgressInfo."""
+    parser = FFmpegProgressParser()
+
+    def fake_time() -> float:
+        return 10.0
+
+    monkeypatch.setattr("vid2gif.backend.services.command_runner.time.time", fake_time)
+
+    progress = parser.parse_progress_line(
+        "frame=1 time=00:00:01.50 bitrate=0.0kbits/s",
+        clip_duration=3.0,
+        start_time=5.0,
+    )
+
+    assert progress is not None
+    assert progress.percent == pytest.approx(50.0)
+    assert progress.est_seconds_remaining == pytest.approx(5.0)
 
 
 def test_conversion_params_clip_duration() -> None:
@@ -255,6 +290,100 @@ def test_conversion_params_clip_duration() -> None:
     assert params2.clip_duration == 0.01
 
 
+def test_command_runner__run_command_without_semaphore(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run command and parse progress without semaphore."""
+    events: list[ProgressInfo] = []
+
+    class DummyProc:
+        def __init__(self) -> None:
+            self.stderr = [
+                "frame=1 time=00:00:01.00 bitrate=0.0kbits/s",
+                "frame=2 time=00:00:02.00 bitrate=0.0kbits/s",
+            ]
+
+        def wait(self) -> int:
+            return 0
+
+    def fake_popen(
+        cmd: list[str],  # noqa: ARG001
+        stderr: Any,  # noqa: ARG001
+        text: bool,  # noqa: ARG001
+        encoding: str,  # noqa: ARG001
+        errors: str,  # noqa: ARG001
+    ) -> DummyProc:
+        return DummyProc()
+
+    monkeypatch.setattr("vid2gif.backend.services.command_runner.subprocess.Popen", fake_popen)
+
+    runner = CommandRunner()
+
+    def on_progress(info: ProgressInfo) -> None:
+        events.append(info)
+
+    result = runner.run_command(
+        [
+            "ffmpeg",
+            "-i",
+            "in.mp4",
+            "out.gif",
+        ],
+        clip_duration=2.0,
+        on_progress=on_progress,
+    )
+
+    assert result is True
+    assert events
+    assert events[-1].percent <= 100.0
+
+
+def test_command_runner__run_command_with_semaphore(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run command while guarding with a semaphore."""
+
+    class DummyProc:
+        def __init__(self) -> None:
+            self.stderr: list[str] = []
+
+        def wait(self) -> int:
+            return 0
+
+    def fake_popen(
+        cmd: list[str], stderr: Any, text: bool, encoding: str, errors: str
+    ) -> DummyProc:  # noqa: ARG001
+        return DummyProc()
+
+    monkeypatch.setattr("vid2gif.backend.services.command_runner.subprocess.Popen", fake_popen)
+
+    semaphore = threading.Semaphore(1)
+    runner = CommandRunner(semaphore=semaphore)
+
+    result = runner.run_command(["echo", "ok"])
+
+    assert result is True
+
+
+def test_command_runner__run_command_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Return False when subprocess exits with non-zero code."""
+
+    class DummyProc:
+        def __init__(self) -> None:
+            self.stderr: list[str] = []
+
+        def wait(self) -> int:
+            return 1
+
+    def fake_popen(
+        cmd: list[str], stderr: Any, text: bool, encoding: str, errors: str
+    ) -> DummyProc:  # noqa: ARG001
+        return DummyProc()
+
+    monkeypatch.setattr("vid2gif.backend.services.command_runner.subprocess.Popen", fake_popen)
+
+    runner = CommandRunner()
+    result = runner.run_command(["false"])
+
+    assert result is False
+
+
 def test_ffmpeg_runner__run_conversion_without_semaphore(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -262,14 +391,16 @@ def test_ffmpeg_runner__run_conversion_without_semaphore(
     """Run conversion without semaphore."""
     runner = FFmpegRunner(semaphore=None)
 
-    # Mock _execute to return success
-    def fake_execute(
-        params: ConversionParams,
-        on_progress: Any,  # noqa: ANN401, ARG001
+    # Mock the command runner's run_command method
+    def fake_run_command(
+        cmd: list[str],  # noqa: ARG001
+        *,
+        clip_duration: float | None = None,  # noqa: ARG001
+        on_progress: Any = None,  # noqa: ANN401, ARG001
     ) -> bool:
         return True
 
-    monkeypatch.setattr(runner, "_execute", fake_execute)
+    monkeypatch.setattr(runner._command_runner, "run_command", fake_run_command)
 
     params = ConversionParams(
         input_path=tmp_path / "in.mp4",
@@ -292,14 +423,16 @@ def test_ffmpeg_runner__run_conversion_with_semaphore(
     semaphore = threading.Semaphore(1)
     runner = FFmpegRunner(semaphore=semaphore)
 
-    # Mock _execute to return success
-    def fake_execute(
-        params: ConversionParams,
-        on_progress: Any,  # noqa: ANN401, ARG001
+    # Mock the command runner's run_command method
+    def fake_run_command(
+        cmd: list[str],  # noqa: ARG001
+        *,
+        clip_duration: float | None = None,  # noqa: ARG001
+        on_progress: Any = None,  # noqa: ANN401, ARG001
     ) -> bool:
         return True
 
-    monkeypatch.setattr(runner, "_execute", fake_execute)
+    monkeypatch.setattr(runner._command_runner, "run_command", fake_run_command)
 
     params = ConversionParams(
         input_path=tmp_path / "in.mp4",
@@ -319,6 +452,58 @@ def test_progress_info() -> None:
     info = ProgressInfo(percent=75.5, est_seconds_remaining=30.0)
     assert info.percent == 75.5
     assert info.est_seconds_remaining == 30.0
+
+
+# --- ConversionStrategy tests ---
+
+
+def test_gif_strategy__output_extension() -> None:
+    """GifConversionStrategy returns correct output extension."""
+    strategy = GifConversionStrategy()
+    assert strategy.output_extension == ".gif"
+
+
+def test_gif_strategy__description() -> None:
+    """GifConversionStrategy returns correct description."""
+    strategy = GifConversionStrategy()
+    assert strategy.description == "GIF conversion"
+
+
+def test_gif_strategy__build_command_includes_palette() -> None:
+    """GIF strategy includes palette generation for quality."""
+    params = ConversionParams(
+        input_path=Path("/tmp/input.mp4"),
+        output_path=Path("/tmp/output.gif"),
+        scale="original",
+        fps=10,
+        start_time_sec=0.0,
+        end_time_sec=5.0,
+    )
+    strategy = GifConversionStrategy()
+
+    cmd = strategy.build_command(params)
+    vf_filter = cmd[cmd.index("-vf") + 1]
+
+    assert "palettegen" in vf_filter
+    assert "paletteuse" in vf_filter
+    assert "-loop" in cmd
+    assert "0" in cmd  # infinite loop
+
+
+def test_ffmpeg_runner__uses_strategy() -> None:
+    """FFmpegRunner exposes strategy property."""
+    strategy = GifConversionStrategy()
+    runner = FFmpegRunner(strategy=strategy)
+
+    assert runner.strategy is strategy
+    assert runner.strategy.output_extension == ".gif"
+
+
+def test_ffmpeg_runner__defaults_to_gif_strategy() -> None:
+    """FFmpegRunner defaults to GifConversionStrategy."""
+    runner = FFmpegRunner()
+
+    assert isinstance(runner.strategy, GifConversionStrategy)
 
 
 # --- FileManager tests ---
@@ -356,12 +541,15 @@ def test_file_manager__write_input_file(tmp_path: Path) -> None:
 
 
 def test_file_manager__get_output_path(tmp_path: Path) -> None:
-    """Get output path with .gif extension."""
+    """Get output path with specified extension."""
     manager = FileManager(tmp_path)
 
-    path = manager.get_output_path("job1", "video.mp4")
-
+    path = manager.get_output_path("job1", "video.mp4", ".gif")
     assert path == tmp_path / "job1" / "video.gif"
+
+    # Also works with other extensions
+    path_mp3 = manager.get_output_path("job1", "audio.wav", ".mp3")
+    assert path_mp3 == tmp_path / "job1" / "audio.mp3"
 
 
 def test_file_manager__cleanup_input_file(tmp_path: Path) -> None:
@@ -509,3 +697,116 @@ def test_conversion_service__record_skip_error(tmp_path: Path) -> None:
     assert job is not None
     assert job["error_files"] == 1
     assert job["status"] == "failed"
+
+
+def test_conversion_service__process_file_success_finalizes_job(tmp_path: Path) -> None:
+    """Finalize job with success when last file succeeds."""
+    store = InMemoryJobStore()
+    file_manager = FileManager(tmp_path)
+
+    class FakeRunner:
+        def __init__(self) -> None:
+            self.strategy = GifConversionStrategy()
+
+        def run_conversion(self, params: ConversionParams, on_progress: Any = None) -> bool:  # noqa: ARG002
+            if on_progress is not None:
+                on_progress(ProgressInfo(percent=50.0, est_seconds_remaining=10.0))
+                on_progress(ProgressInfo(percent=100.0, est_seconds_remaining=0.0))
+            return True
+
+    runner = FakeRunner()
+    service = ConversionService(store, file_manager, runner)
+
+    lock = service.create_job("job1", 1)
+    service.process_file(
+        job_id="job1",
+        lock=lock,
+        original_name="video.mp4",
+        file_bytes=b"data",
+        scale="original",
+        fps=10,
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        file_index=1,
+        total_files=1,
+    )
+
+    job = service.get_job("job1")
+    assert job is not None
+    assert job["status"] == "done"
+    assert job["successful_files"] == 1
+    assert job["error_files"] == 0
+    assert job["current_file_percent"] == 100.0
+    assert job["downloads"]
+
+
+def test_conversion_service__process_file_partial_updates_status(tmp_path: Path) -> None:
+    """Update status when not all files are processed yet."""
+    store = InMemoryJobStore()
+    file_manager = FileManager(tmp_path)
+
+    class FakeRunner:
+        def __init__(self) -> None:
+            self.strategy = GifConversionStrategy()
+
+        def run_conversion(self, params: ConversionParams, on_progress: Any = None) -> bool:  # noqa: ARG002
+            if on_progress is not None:
+                on_progress(ProgressInfo(percent=100.0, est_seconds_remaining=0.0))
+            return True
+
+    runner = FakeRunner()
+    service = ConversionService(store, file_manager, runner)
+
+    lock = service.create_job("job1", 2)
+    service.process_file(
+        job_id="job1",
+        lock=lock,
+        original_name="video.mp4",
+        file_bytes=b"data",
+        scale="original",
+        fps=10,
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        file_index=1,
+        total_files=2,
+    )
+
+    job = service.get_job("job1")
+    assert job is not None
+    assert job["processed_files"] == 1
+    assert job["status"].startswith("Processed 1/2")
+
+
+def test_conversion_service__process_file_failure_records_error(tmp_path: Path) -> None:
+    """Record error and mark job failed when conversion fails."""
+    store = InMemoryJobStore()
+    file_manager = FileManager(tmp_path)
+
+    class FakeRunner:
+        def __init__(self) -> None:
+            self.strategy = GifConversionStrategy()
+
+        def run_conversion(self, params: ConversionParams, on_progress: Any = None) -> bool:  # noqa: ARG002
+            return False
+
+    runner = FakeRunner()
+    service = ConversionService(store, file_manager, runner)
+
+    lock = service.create_job("job1", 1)
+    service.process_file(
+        job_id="job1",
+        lock=lock,
+        original_name="video.mp4",
+        file_bytes=b"data",
+        scale="original",
+        fps=10,
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        file_index=1,
+        total_files=1,
+    )
+
+    job = service.get_job("job1")
+    assert job is not None
+    assert job["status"] == "failed"
+    assert job["error_files"] == 1

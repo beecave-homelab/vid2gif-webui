@@ -2,13 +2,66 @@
 
 ## ToC
 
-- [v0.3.2 (Current)](#v032-current---29-11-2025)
+- [v0.5.0 (Current)](#v050-current---30-11-2025)
+- [v0.4.0](#v040---29-11-2025)
+- [v0.3.2](#v032---29-11-2025)
 - [v0.3.1](#v031---29-11-2025)
 - [v0.3.0](#v030---28-11-2025)
 - [v0.2.0](#v020---27-11-2025)
 - [v0.1.0](#v010---26-11-2025)
 
-## **v0.3.2** (Current) - *29-11-2025*
+## **v0.5.0** (Current) - *30-11-2025*
+
+### 🎨 Brief Description (v0.5.0)
+
+UI/UX-focused minor release introducing a dedicated SVG favicon and wiring it into the WebUI so the application has a clear visual identity in the browser.
+
+### ✨ **New Features in v0.5.0**
+
+- **Added**: `vid2gif/frontend/public/flavicon.svg` SVG favicon aligned with the dark theme and primary accent colors.
+- **Added**: Favicon integration in `vid2gif/frontend/index.html` so the icon is served with the WebUI.
+
+### 🔧 **Improvements in v0.5.0**
+
+- **Improved**: WebUI polish with a consistent icon that reflects the video-to-GIF purpose.
+
+- **Improved**: Backend and service-layer test coverage to around 90% line coverage for the
+  `vid2gif` package, keeping the CI coverage threshold at **≥ 85%**.
+
+### 📝 **Key Commits in v0.5.0**
+
+`8421a7f`, `515542e`, `c586496`
+
+---
+
+## **v0.4.0** - *29-11-2025*
+
+### ♻️ Brief Description (v0.4.0)
+
+Minor release introducing full SRP (Single Responsibility Principle) compliance through a Strategy Pattern refactor. The service layer is now fully extensible for different conversion types (GIF, audio extraction, etc.) without modifying core infrastructure.
+
+### ✨ **New Features in v0.4.0**
+
+- **Added**: `ConversionStrategy` protocol for pluggable conversion implementations.
+- **Added**: `GifConversionStrategy` implementing video-to-GIF conversion logic.
+- **Added**: `CommandRunner` module for generic subprocess execution with progress parsing.
+- **Added**: `ConversionParams` dataclass for type-safe conversion parameters.
+
+### 🔧 **Improvements in v0.4.0**
+
+- **Refactored**: `FFmpegRunner` is now a thin adapter delegating to strategy and runner.
+- **Refactored**: `FileManager.get_output_path()` accepts extension parameter (no hardcoded `.gif`).
+- **Refactored**: `ConversionService` uses strategy for output extension (pure orchestration).
+- **Improved**: Clear separation between infrastructure (generic) and use-case specifics (GIF).
+- **Enhanced**: Architecture now supports adding new conversion types with minimal changes.
+
+### 📝 **Key Commits in v0.4.0**
+
+`ad3bf88`, `c0e9c6a`
+
+---
+
+## **v0.3.2** - *29-11-2025*
 
 ### 🐛 Brief Description (v0.3.2)
 
