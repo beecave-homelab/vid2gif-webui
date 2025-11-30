@@ -1,0 +1,106 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 64 64"
+  role="img"
+  aria-labelledby="title desc"
+>
+  <title id="title">vid2gif Icon (Centered)</title>
+  <desc id="desc">
+    Video frame converting into a GIF frame, centered vertically within the icon.
+  </desc>
+
+  <!-- Background -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#020617" />
+      <stop offset="100%" stop-color="#0b1220" />
+    </linearGradient>
+
+    <!-- Purple accent -->
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#8b5cf6" />
+    </linearGradient>
+
+    <!-- GIF frame color -->
+    <linearGradient id="gifFrame" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#0ea5e9" />
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded background -->
+  <rect
+    x="4"
+    y="4"
+    width="56"
+    height="56"
+    rx="14"
+    ry="14"
+    fill="url(#bg)"
+  />
+
+  <!-- VIDEO FRAME (left) -->
+  <g transform="translate(9,22)">
+    <rect
+      x="0"
+      y="0"
+      width="24"
+      height="18"
+      rx="4"
+      ry="4"
+      fill="none"
+      stroke="#64748b"
+      stroke-width="2.2"
+    />
+
+    <!-- Play icon -->
+    <polygon
+      points="8,4.5 17,9 8,13.5"
+      fill="url(#accent)"
+    />
+  </g>
+
+  <!-- GIF FRAME (right) -->
+  <g transform="translate(34,22)">
+    <!-- Back ghost frame -->
+    <rect
+      x="4"
+      y="4"
+      width="22"
+      height="16"
+      rx="4"
+      ry="4"
+      stroke="#1e293b"
+      stroke-width="1.3"
+      fill="none"
+      opacity="0.5"
+    />
+
+    <!-- Main GIF frame -->
+    <rect
+      x="1.5"
+      y="7"
+      width="22"
+      height="15"
+      rx="4"
+      ry="4"
+      stroke="url(#gifFrame)"
+      stroke-width="2.4"
+      fill="none"
+    />
+
+    <!-- GIF text -->
+    <text
+      x="12.5"
+      y="16"
+      text-anchor="middle"
+      font-family="system-ui, sans-serif"
+      font-size="6.2"
+      fill="#e2e8f0"
+      letter-spacing="0.4"
+    >
+      GIF
+    </text>
+  </g>
+</svg>
