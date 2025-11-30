@@ -30,7 +30,7 @@ UI/UX-focused minor release introducing a dedicated SVG favicon and wiring it in
 
 ### 📝 **Key Commits in v0.5.0**
 
-`8421a7f`, `515542e`
+`8421a7f`, `515542e`, `c586496`
 
 ---
 
