@@ -25,6 +25,9 @@ UI/UX-focused minor release introducing a dedicated SVG favicon and wiring it in
 
 - **Improved**: WebUI polish with a consistent icon that reflects the video-to-GIF purpose.
 
+- **Improved**: Backend and service-layer test coverage to around 90% line coverage for the
+  `vid2gif` package, keeping the CI coverage threshold at **≥ 85%**.
+
 ### 📝 **Key Commits in v0.5.0**
 
 `8421a7f`, `515542e`

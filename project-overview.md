@@ -58,7 +58,7 @@ Access the WebUI at `http://localhost:8080` (local/PDM or production Docker) or 
 
 | Version | Date       | Type | Key Changes                                      |
 |---------|------------|------|--------------------------------------------------|
-| 0.5.0   | 2025-11-30 | 🎨   | WebUI SVG favicon and icon integration           |
+| 0.5.0   | 2025-11-30 | 🎨   | WebUI SVG favicon, icon integration, ~90% test coverage |
 | 0.4.0   | 2025-11-29 | ♻️   | SRP refactor: Strategy pattern, extensible arch  |
 | 0.3.2   | 2025-11-29 | 🐛   | Docker image labels and Compose images for GHCR |
 | 0.3.1   | 2025-11-29 | 🐛   | Fix frontend mount path, Python 3.13, dependencies |
@@ -579,6 +579,9 @@ test_<unit_under_test>__<expected_behavior>()
 ### Coverage Target
 
 Guideline: **≥ 85%** line coverage. CI should fail below threshold.
+
+Current status (v0.5.0): ~90% line coverage for the `vid2gif` package, with core backend and
+service-layer modules above the threshold.
 
 ---
 
