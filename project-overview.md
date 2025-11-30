@@ -12,7 +12,7 @@ A self-hosted web application for converting video files to animated GIFs using 
 [![Python](https://img.shields.io/badge/Python-3.13+-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.122+-green)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-brightgreen)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.4.0-blue)](#version-summary)
+[![Version](https://img.shields.io/badge/Version-0.5.0-blue)](#version-summary)
 
 ---
 
@@ -58,6 +58,7 @@ Access the WebUI at `http://localhost:8080` (local/PDM or production Docker) or 
 
 | Version | Date       | Type | Key Changes                                      |
 |---------|------------|------|--------------------------------------------------|
+| 0.5.0   | 2025-11-30 | 🎨   | WebUI SVG favicon and icon integration           |
 | 0.4.0   | 2025-11-29 | ♻️   | SRP refactor: Strategy pattern, extensible arch  |
 | 0.3.2   | 2025-11-29 | 🐛   | Docker image labels and Compose images for GHCR |
 | 0.3.1   | 2025-11-29 | 🐛   | Fix frontend mount path, Python 3.13, dependencies |
@@ -160,7 +161,7 @@ The service layer separates **infrastructure** (generic, reusable) from **use-ca
 │ • update_progress│   │ • get_output_path()  │   │ runner: CommandRunner │
 │ • record_success │   │ • cleanup_expired()  │   │                       │
 └──────────────────┘   └──────────────────────┘   └───────────────────────┘
-                                                              │
+                                                               │
                               ┌────────────────────────────────┤
                               │                                │
                               ▼                                ▼
@@ -222,6 +223,7 @@ Then inject it: `FFmpegRunner(strategy=AudioExtractionStrategy())`
 - **Video Editor**: Per-file start/end sliders synced with `<video>` element
 - **Polling**: `pollProgress()` fetches `/progress?job_id=...` every second until done
 - **Dark Theme**: Minimal CSS with responsive layout
+- **SVG favicon**: `vid2gif/frontend/public/favicon.svg` wired into `index.html`
 
 ### Data Flow
 
