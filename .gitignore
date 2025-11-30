@@ -181,3 +181,4 @@ tmp/*/*.gif
 tmp/*
 
 .github/PULL_REQUEST/
+.DS_Store
