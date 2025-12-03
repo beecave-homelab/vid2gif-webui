@@ -260,13 +260,15 @@ def test_convert__creates_job_and_starts_processing(
         job_id: str,
         lock: threading.Lock,
         original_name: str,
-        file_bytes: bytes,  # noqa: ARG001
+        file_bytes: bytes | None,  # noqa: ARG001
         scale: str,  # noqa: ARG001
         fps: int,  # noqa: ARG001
         start_time_sec: float,  # noqa: ARG001
         end_time_sec: float,  # noqa: ARG001
         file_index: int,  # noqa: ARG001
         total_files: int,
+        *,
+        input_path: Path | None = None,  # noqa: ARG001
     ) -> None:
         with lock:
             job = app.jobs[job_id]
