@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
     image: ghcr.io/beecave-homelab/vid2gif-webui:main
     container_name: vid2gif-webui
+    mem_limit: 3g
     ports:
       - "8080:8080"
     restart: unless-stopped
@@ -22,4 +23,4 @@ services:
     # command: >
     #   sh -c "mkdir -p /app/tmp && uvicorn vid2gif.backend.app:app --host 0.0.0.0 --port 8000 --reload"
     # The above command variation ensures tmp exists if not created by app.py early enough
-    # For now, the simpler command should work as app.py creates it. 
+    # For now, the simpler command should work as app.py creates it.
