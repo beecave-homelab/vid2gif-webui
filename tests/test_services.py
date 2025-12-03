@@ -740,6 +740,53 @@ def test_conversion_service__process_file_success_finalizes_job(tmp_path: Path) 
     assert job["downloads"]
 
 
+def test_conversion_service__process_file_uses_existing_path(tmp_path: Path) -> None:
+    """Use a pre-persisted upload path without rewriting file bytes."""
+    store = InMemoryJobStore()
+    file_manager = FileManager(tmp_path)
+
+    class FakeRunner:
+        def __init__(self) -> None:
+            self.strategy = GifConversionStrategy()
+
+        def run_conversion(self, params: ConversionParams, on_progress: Any = None) -> bool:  # noqa: ARG002
+            return params.input_path.exists()
+
+    runner = FakeRunner()
+    service = ConversionService(store, file_manager, runner)
+
+    lock = service.create_job("job1", 1)
+    existing_path = tmp_path / "job1" / "1_video.mp4"
+    existing_path.write_bytes(b"data")
+
+    def fail_write_input_file(*_: Any, **__: Any) -> None:
+        msg = "write_input_file should not be called when input_path is provided"
+        raise AssertionError(msg)
+
+    file_manager.write_input_file = fail_write_input_file  # type: ignore[assignment]
+
+    service.process_file(
+        job_id="job1",
+        lock=lock,
+        original_name="video.mp4",
+        file_bytes=None,
+        input_path=existing_path,
+        scale="original",
+        fps=10,
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        file_index=1,
+        total_files=1,
+    )
+
+    job = service.get_job("job1")
+    assert job is not None
+    assert job["status"] == "done"
+    assert job["successful_files"] == 1
+    assert job["error_files"] == 0
+    assert not existing_path.exists()
+
+
 def test_conversion_service__process_file_partial_updates_status(tmp_path: Path) -> None:
     """Update status when not all files are processed yet."""
     store = InMemoryJobStore()
