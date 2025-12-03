@@ -145,7 +145,9 @@ class ConversionService:
         job_id: str,
         lock: threading.Lock,
         original_name: str,
-        file_bytes: bytes,
+        file_bytes: bytes | None,
+        *,
+        input_path: Path | None = None,
         scale: str,
         fps: int,
         start_time_sec: float,
@@ -159,13 +161,18 @@ class ConversionService:
             job_id: The job identifier.
             lock: Thread lock for synchronizing job state updates.
             original_name: Original filename of the video.
-            file_bytes: Raw bytes of the video file.
+            file_bytes: Raw bytes of the video file. Optional when input_path is provided.
+            input_path: Existing path on disk for the uploaded file. If provided, the
+                file will not be rewritten from bytes.
             scale: Scale factor (e.g., "320:-1") or "original".
             fps: Frames per second for output.
             start_time_sec: Start time in seconds for trimming.
             end_time_sec: End time in seconds for trimming.
             file_index: Index of current file (1-based).
             total_files: Total number of files in the job.
+
+        Raises:
+            ValueError: If ``file_bytes`` is absent when no ``input_path`` is supplied.
         """
         logging.info(
             "Job %s: Starting file %d/%d: %s (Trim: %.2fs to %.2fs, Scale: %s, FPS: %d)",
@@ -180,15 +187,23 @@ class ConversionService:
         )
 
         input_filename = f"{file_index}_{original_name}"
-        input_path: Path | None = None
+        resolved_input_path: Path | None = None
 
         try:
-            input_path = self._file_manager.write_input_file(job_id, input_filename, file_bytes)
+            if input_path:
+                resolved_input_path = input_path
+            else:
+                if file_bytes is None:
+                    msg = "file_bytes must be provided when input_path is not set"
+                    raise ValueError(msg)
+                resolved_input_path = self._file_manager.write_input_file(
+                    job_id, input_filename, file_bytes
+                )
             output_ext = self._ffmpeg_runner.strategy.output_extension
             output_path = self._file_manager.get_output_path(job_id, original_name, output_ext)
 
             params = ConversionParams(
-                input_path=input_path,
+                input_path=resolved_input_path,
                 output_path=output_path,
                 scale=scale,
                 fps=fps,
@@ -283,8 +298,8 @@ class ConversionService:
                         )
 
         finally:
-            if input_path:
-                self._file_manager.cleanup_input_file(input_path)
+            if resolved_input_path:
+                self._file_manager.cleanup_input_file(resolved_input_path)
 
     def record_skip_error(
         self,

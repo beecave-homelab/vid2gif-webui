@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import threading
 import uuid
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
@@ -88,17 +89,51 @@ def cleanup_expired_jobs(
     _conversion_service.cleanup_expired_jobs(now=now)
 
 
+async def _persist_upload_file(job_id: str, upload: UploadFile, file_index: int) -> Path:
+    """Stream an uploaded file to disk without loading it fully into memory.
+
+    Args:
+        job_id: Identifier for the job directory.
+        upload: Incoming uploaded file handle.
+        file_index: One-based index of the upload for filename prefixing.
+
+    Returns:
+        Path to the saved file on disk.
+    """
+    chunk_size = 1024 * 1024 * 4  # 4 MiB
+    dest_path = _file_manager.base_dir / job_id / f"{file_index}_{upload.filename}"
+
+    try:
+        with dest_path.open("wb") as dest:
+            while True:
+                chunk = await upload.read(chunk_size)
+                if not chunk:
+                    break
+                dest.write(chunk)
+    except Exception as exc:  # noqa: BLE001
+        logging.error(
+            "Job %s: Failed to persist upload %s: %s", job_id, upload.filename, exc, exc_info=True
+        )
+        raise
+    finally:
+        await upload.close()
+
+    return dest_path
+
+
 def process_job_file(
     job_id: str,
     lock: threading.Lock,
     original_name: str,
-    file_bytes: bytes,
+    file_bytes: bytes | None,
     scale: str,
     fps: int,
     start_time_sec: float,
     end_time_sec: float,
     file_index: int,
     total_files: int,
+    *,
+    input_path: Path | None = None,
 ) -> None:
     """Process a single video file for conversion within a larger job.
 
@@ -108,7 +143,8 @@ def process_job_file(
         job_id: The unique identifier for the job.
         lock: Thread lock for synchronizing job state updates.
         original_name: The original filename of the video.
-        file_bytes: The raw bytes of the video file.
+        file_bytes: The raw bytes of the video file (optional when input_path is set).
+        input_path: Path to an already persisted upload; skips re-writing bytes when provided.
         scale: The scaling factor (e.g., "320:-1") or "original".
         fps: The frames per second for the output GIF.
         start_time_sec: The start time in seconds for trimming.
@@ -121,6 +157,7 @@ def process_job_file(
         lock=lock,
         original_name=original_name,
         file_bytes=file_bytes,
+        input_path=input_path,
         scale=scale,
         fps=fps,
         start_time_sec=start_time_sec,
@@ -198,10 +235,8 @@ async def convert(
                     f"start={start_time_sec}, end={end_time_sec}"
                 )
 
-            contents = await file.read()
-            logging.info(
-                f"Job {job_id}: Read {len(contents)} bytes for file {i + 1}: {file.filename}"
-            )
+            input_path = await _persist_upload_file(job_id, file, i + 1)
+            logging.info("Job %s: Saved upload to %s", job_id, input_path)
 
             # Launch background thread for this specific file, passing fps
             threading.Thread(
@@ -210,7 +245,7 @@ async def convert(
                     job_id,
                     job_lock,
                     file.filename,
-                    contents,
+                    None,
                     scale,
                     fps,
                     start_time_sec,
@@ -218,6 +253,7 @@ async def convert(
                     i + 1,  # file index (1-based)
                     num_files,
                 ),
+                kwargs={"input_path": input_path},
                 daemon=True,
             ).start()
 
