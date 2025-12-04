@@ -300,9 +300,13 @@ def test_command_runner__run_command_without_semaphore(monkeypatch: pytest.Monke
                 "frame=1 time=00:00:01.00 bitrate=0.0kbits/s",
                 "frame=2 time=00:00:02.00 bitrate=0.0kbits/s",
             ]
+            self.returncode = 0
 
         def wait(self) -> int:
             return 0
+
+        def communicate(self) -> tuple[str, str]:
+            return "", ""
 
     def fake_popen(
         cmd: list[str],  # noqa: ARG001
@@ -342,9 +346,13 @@ def test_command_runner__run_command_with_semaphore(monkeypatch: pytest.MonkeyPa
     class DummyProc:
         def __init__(self) -> None:
             self.stderr: list[str] = []
+            self.returncode = 0
 
         def wait(self) -> int:
             return 0
+
+        def communicate(self) -> tuple[str, str]:
+            return "", ""
 
     def fake_popen(
         cmd: list[str], stderr: Any, text: bool, encoding: str, errors: str
@@ -367,9 +375,13 @@ def test_command_runner__run_command_failure(monkeypatch: pytest.MonkeyPatch) ->
     class DummyProc:
         def __init__(self) -> None:
             self.stderr: list[str] = []
+            self.returncode = 1
 
         def wait(self) -> int:
             return 1
+
+        def communicate(self) -> tuple[str, str]:
+            return "", ""
 
     def fake_popen(
         cmd: list[str], stderr: Any, text: bool, encoding: str, errors: str
@@ -413,6 +425,171 @@ def test_ffmpeg_runner__run_conversion_without_semaphore(
 
     result = runner.run_conversion(params)
     assert result is True
+
+
+def test_ffmpeg_runner__two_pass_for_long_clip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Use two-pass subsampled palette strategy for long clips."""
+    runner = FFmpegRunner(semaphore=None)
+
+    recorded_cmds: list[list[str]] = []
+
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        clip_duration: float | None = None,  # noqa: ARG001
+        on_progress: Any = None,  # noqa: ANN401, ARG001
+    ) -> bool:
+        recorded_cmds.append(cmd)
+        return True
+
+    monkeypatch.setattr(runner._command_runner, "run_command", fake_run_command)
+
+    output_path = tmp_path / "out.gif"
+    params = ConversionParams(
+        input_path=tmp_path / "in.mp4",
+        output_path=output_path,
+        scale="original",
+        fps=10,
+        start_time_sec=0.0,
+        end_time_sec=75.0,
+    )
+
+    # Pre-create palette file to verify cleanup
+    palette_path = tmp_path / "out.palette.png"
+    palette_path.touch()
+
+    result = runner.run_conversion(params)
+
+    assert result is True
+    # Should have 2 commands: palette generation and conversion
+    assert len(recorded_cmds) == 2
+
+    palette_cmd = recorded_cmds[0]
+    convert_cmd = recorded_cmds[1]
+
+    # Check Palette Generation Command
+    assert palette_cmd[0] == "ffmpeg"
+    assert "fps=1,palettegen" in palette_cmd[palette_cmd.index("-vf") + 1]
+    assert str(palette_path) in palette_cmd
+
+    # Check Conversion Command
+    assert convert_cmd[0] == "ffmpeg"
+    assert "-i" in convert_cmd
+    assert str(palette_path) in convert_cmd  # Palette input
+    assert "paletteuse" in convert_cmd[convert_cmd.index("-lavfi") + 1]
+
+    # Verify cleanup
+    assert not palette_path.exists(), "Palette file should be deleted"
+
+
+def test_ffmpeg_runner__two_pass_palette_generation_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Return False if palette generation fails in two-pass strategy."""
+    runner = FFmpegRunner(semaphore=None)
+
+    # Mock command runner to fail on the first command (palettegen)
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        clip_duration: float | None = None,  # noqa: ARG001
+        on_progress: Any = None,  # noqa: ANN401, ARG001
+    ) -> bool:
+        return False
+
+    monkeypatch.setattr(runner._command_runner, "run_command", fake_run_command)
+
+    params = ConversionParams(
+        input_path=tmp_path / "in.mp4",
+        output_path=tmp_path / "out.gif",
+        scale="original",
+        fps=10,
+        start_time_sec=0.0,
+        end_time_sec=75.0,
+    )
+
+    result = runner.run_conversion(params)
+    assert result is False
+
+
+def test_ffmpeg_runner__two_pass_conversion_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Return False if conversion fails after successful palette generation."""
+    runner = FFmpegRunner(semaphore=None)
+
+    # Mock command runner to succeed on palettegen but fail on conversion
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        clip_duration: float | None = None,  # noqa: ARG001
+        on_progress: Any = None,  # noqa: ANN401, ARG001
+    ) -> bool:
+        if "palettegen" in " ".join(cmd):
+            return True
+        return False
+
+    monkeypatch.setattr(runner._command_runner, "run_command", fake_run_command)
+
+    params = ConversionParams(
+        input_path=tmp_path / "in.mp4",
+        output_path=tmp_path / "out.gif",
+        scale="original",
+        fps=10,
+        start_time_sec=0.0,
+        end_time_sec=75.0,
+    )
+
+    # Create dummy palette so cleanup doesn't crash (though it shouldn't with missing_ok=True)
+    palette_path = tmp_path / "out.palette.png"
+    palette_path.touch()
+
+    result = runner.run_conversion(params)
+    assert result is False
+
+    # Verify cleanup still happens even on failure
+    assert not palette_path.exists()
+
+
+def test_ffmpeg_runner__single_pass_for_short_original(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Use single-pass conversion for short original-scale clips."""
+    runner = FFmpegRunner(semaphore=None)
+
+    recorded_cmds: list[list[str]] = []
+
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        clip_duration: float | None = None,  # noqa: ARG001
+        on_progress: Any = None,  # noqa: ANN401, ARG001
+    ) -> bool:
+        recorded_cmds.append(cmd)
+        return True
+
+    monkeypatch.setattr(runner._command_runner, "run_command", fake_run_command)
+
+    params = ConversionParams(
+        input_path=tmp_path / "in.mp4",
+        output_path=tmp_path / "out.gif",
+        scale="original",
+        fps=10,
+        start_time_sec=0.0,
+        end_time_sec=10.0,
+    )
+
+    result = runner.run_conversion(params)
+
+    assert result is True
+    # Duration below segment threshold -> single command
+    assert len(recorded_cmds) == 1
 
 
 def test_ffmpeg_runner__run_conversion_with_semaphore(

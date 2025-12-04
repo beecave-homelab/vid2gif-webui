@@ -177,15 +177,29 @@ class CommandRunner:
             errors="replace",
         )
 
+        stderr_captured = ""
         if proc.stderr and on_progress and clip_duration:
-            self._parse_progress(
+            stderr_captured = self._parse_progress(
                 proc.stderr,
                 clip_duration,
                 conversion_start_time,
                 on_progress,
             )
 
-        return_code = proc.wait()
+        _stdout_data, remaining_stderr = proc.communicate()
+        return_code = proc.returncode
+
+        # Combine captured stderr (from progress parsing) with any remaining stderr
+        final_stderr = stderr_captured + (remaining_stderr or "")
+
+        if return_code != 0 and final_stderr:
+            logging.error(
+                "Command failed with exit code %s: %s\n%s",
+                return_code,
+                " ".join(cmd),
+                final_stderr,
+            )
+
         return return_code == 0
 
     def _parse_progress(
@@ -194,7 +208,7 @@ class CommandRunner:
         clip_duration: float,
         start_time: float,
         on_progress: ProgressCallback,
-    ) -> None:
+    ) -> str:
         """Parse stderr for progress information.
 
         Args:
@@ -202,8 +216,13 @@ class CommandRunner:
             clip_duration: Expected clip duration in seconds.
             start_time: Wall-clock time when command started.
             on_progress: Callback for progress updates.
+
+        Returns:
+            The full captured stderr output.
         """
+        captured_lines: list[str] = []
         for line in stderr:
+            captured_lines.append(line)
             progress = self._progress_parser.parse_progress_line(
                 line,
                 clip_duration,
@@ -211,3 +230,4 @@ class CommandRunner:
             )
             if progress:
                 on_progress(progress)
+        return "".join(captured_lines)
