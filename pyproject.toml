@@ -81,5 +81,5 @@ fix = "ruff check --fix ."
 test = "pytest -q"
 test-cov = "pytest --cov=vid2gif --cov-report=term-missing:skip-covered --cov-report=xml"
 
-start-dev = "uvicorn vid2gif.backend.app:app --host 0.0.0.0 --port 8081 --reload"
+start-dev = "uvicorn vid2gif.backend.app:app --host 0.0.0.0 --port 8081 --reload --log-level debug"
 start-prod = "gunicorn vid2gif.backend.app:app --bind 0.0.0.0:8080"
