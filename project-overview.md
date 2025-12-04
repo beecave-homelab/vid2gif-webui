@@ -1,7 +1,7 @@
 ---
 repo: https://github.com/beecave-homelab/vid2gif-webui
-commit: 9cde92fe085f47d9255ddcc116b21577d4338a10
-generated: 2025-11-26T22:01:00+01:00
+commit: 75e55434d6c94c946730f309253e2ee49724d483
+updated: 2025-12-04T21:14:00+01:00
 ---
 <!-- SECTIONS:API,WEBUI,DOCKER,TESTS -->
 
@@ -12,7 +12,7 @@ A self-hosted web application for converting video files to animated GIFs using 
 [![Python](https://img.shields.io/badge/Python-3.13+-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.122+-green)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-brightgreen)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.5.0-blue)](#version-summary)
+[![Version](https://img.shields.io/badge/Version-0.5.1-blue)](#version-summary)
 
 ---
 
@@ -58,6 +58,7 @@ Access the WebUI at `http://localhost:8080` (local/PDM or production Docker) or 
 
 | Version | Date       | Type | Key Changes                                      |
 |---------|------------|------|--------------------------------------------------|
+| 0.5.1   | 2025-12-04 | 🐛   | Two-pass conversion strategy, fixed OOM issues   |
 | 0.5.0   | 2025-11-30 | 🎨   | WebUI SVG favicon, icon integration, ~90% test coverage |
 | 0.4.0   | 2025-11-29 | ♻️   | SRP refactor: Strategy pattern, extensible arch  |
 | 0.3.2   | 2025-11-29 | 🐛   | Docker image labels and Compose images for GHCR |
@@ -77,6 +78,7 @@ Access the WebUI at `http://localhost:8080` (local/PDM or production Docker) or 
 - **Concurrent conversion limiting** — semaphore-controlled ffmpeg processes
 - **Automatic job cleanup** — expired jobs and temp files removed after TTL
 - **Docker-ready** — production and development compose files included
+- **OOM-safe long clip handling** — automatic switch to two-pass subsampled palette strategy for long clips
 
 ---
 
@@ -134,6 +136,7 @@ vid2gif-webui/
 - **Concurrency Control**: `threading.Semaphore` limits simultaneous ffmpeg processes (default: 4)
 - **Dependency Injection**: Services are injected, enabling easy testing and mocking
 - **Cleanup**: Expired jobs removed opportunistically on each `/convert` request
+- **Long-clip strategy**: Clips longer than `SEGMENT_MAX_DURATION_SECONDS` use a two-pass subsampled palette workflow to avoid OOM errors during palette generation
 
 ### Service Layer Architecture
 
@@ -491,6 +494,7 @@ The canonical list of runtime variables and their defaults lives in `.env.exampl
 | `TMP_BASE_DIR`        | `tmp`   | Directory for temporary job files          |
 | `JOB_TTL_SECONDS`     | `3600`  | Seconds before expired jobs are cleaned up |
 | `FFMPEG_MAX_CONCURRENT` | `4`   | Max simultaneous ffmpeg processes          |
+| `SEGMENT_MAX_DURATION_SECONDS` | `30` | Max clip duration (seconds) for single-pass GIF conversion before switching to two-pass subsampled palette strategy |
 
 Recommended workflow:
 
@@ -580,7 +584,7 @@ test_<unit_under_test>__<expected_behavior>()
 
 Guideline: **≥ 85%** line coverage. CI should fail below threshold.
 
-Current status (v0.5.0): ~90% line coverage for the `vid2gif` package, with core backend and
+Current status (v0.5.1): ~90% line coverage for the `vid2gif` package, with core backend and
 service-layer modules above the threshold.
 
 ---
@@ -659,6 +663,7 @@ Run lint + tests before committing. Use conventional commit format.
 | `gunicorn`         | ≥23.0.0   | WSGI server (prod)               |
 | `python-multipart` | ≥0.0.20   | File upload handling             |
 | `python-env`       | ≥1.0.0    | Environment utilities            |
+| `httpx`            | ≥0.28.1   | HTTP client (tests, health checks, or integrations) |
 
 ### Development (Python)
 

@@ -2,7 +2,8 @@
 
 ## ToC
 
-- [v0.5.0 (Current)](#v050-current---30-11-2025)
+- [v0.5.1 (Current)](#v051-current---04-12-2025)
+- [v0.5.0](#v050---30-11-2025)
 - [v0.4.0](#v040---29-11-2025)
 - [v0.3.2](#v032---29-11-2025)
 - [v0.3.1](#v031---29-11-2025)
@@ -10,7 +11,34 @@
 - [v0.2.0](#v020---27-11-2025)
 - [v0.1.0](#v010---26-11-2025)
 
-## **v0.5.0** (Current) - *30-11-2025*
+## **v0.5.1** (Current) - *04-12-2025*
+
+### 🐛 Brief Description (v0.5.1)
+
+Patch release resolving critical OOM errors and truncated outputs when converting long, high-resolution videos. Introduces a two-pass conversion strategy for long clips.
+
+### 🐛 **Bug Fixes in v0.5.1**
+
+- **Fixed**: OOM errors and truncated GIFs for long video clips.
+  - **Issue**: Single-pass `palettegen` consumed excessive memory for long/high-res videos, and segmentation attempts caused concatenation artifacts.
+  - **Solution**: Implemented a two-pass strategy for clips >30s:
+    1. Generate a global palette using 1 FPS subsampling (low memory).
+    2. Convert the full video in a single pass using the pre-generated palette.
+- **Fixed**: Stderr logging in `CommandRunner` was being consumed by progress parsing, hiding error details.
+  - **Solution**: Modified `CommandRunner` to capture and return stderr content during progress parsing.
+
+### 🔧 **Improvements in v0.5.1**
+
+- **Enhanced**: Added `SEGMENT_MAX_DURATION_SECONDS` to `.env.example` to control the two-pass threshold.
+- **Enhanced**: Enabled debug logging for `uvicorn` in development mode (`start-dev`).
+
+### 📝 **Key Commits in v0.5.1**
+
+`f5664bf`, `75e5543`, `3dac4a5`
+
+---
+
+## **v0.5.0** - *30-11-2025*
 
 ### 🎨 Brief Description (v0.5.0)
 
